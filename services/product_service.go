@@ -1,0 +1,396 @@
+package services
+
+import (
+	"context"
+	"fmt"
+	"mamabloemetjes_server/database"
+	"mamabloemetjes_server/structs"
+	"time"
+
+	"github.com/MonkyMars/gecho"
+)
+
+type ProductService struct {
+	logger *gecho.Logger
+	db     *database.DB
+}
+
+func NewProductService(logger *gecho.Logger, db *database.DB) *ProductService {
+	return &ProductService{
+		logger: logger,
+		db:     db,
+	}
+}
+
+// ProductListOptions contains filtering and pagination options for product queries
+type ProductListOptions struct {
+	// Pagination
+	Page     int `json:"page"`
+	PageSize int `json:"page_size"`
+
+	// Filters
+	IsActive      *bool      `json:"is_active,omitempty"`      // Filter by active status
+	ProductType   string     `json:"product_type,omitempty"`   // Filter by product type (flower, bouquet)
+	MinPrice      *uint64    `json:"min_price,omitempty"`      // Minimum price in cents
+	MaxPrice      *uint64    `json:"max_price,omitempty"`      // Maximum price in cents
+	Size          string     `json:"size,omitempty"`           // Filter by size
+	Colors        []string   `json:"colors,omitempty"`         // Filter by colors (OR condition)
+	InStock       *bool      `json:"in_stock,omitempty"`       // Only products with stock > 0
+	SearchTerm    string     `json:"search_term,omitempty"`    // Search in name, description, SKU
+	SKUs          []string   `json:"skus,omitempty"`           // Filter by specific SKUs
+	ExcludeSKUs   []string   `json:"exclude_skus,omitempty"`   // Exclude specific SKUs
+	CreatedAfter  *time.Time `json:"created_after,omitempty"`  // Products created after this date
+	CreatedBefore *time.Time `json:"created_before,omitempty"` // Products created before this date
+
+	// Sorting
+	SortBy        string `json:"sort_by"`        // Field to sort by (created_at, price, name, stock)
+	SortDirection string `json:"sort_direction"` // ASC or DESC
+
+	// Relations
+	IncludeImages bool `json:"include_images"` // Preload product images
+
+	// Performance
+	Timeout time.Duration `json:"-"` // Query timeout (not exposed in JSON)
+}
+
+// ProductListResult wraps the product list response with metadata
+type ProductListResult struct {
+	Products   []structs.Product   `json:"products"`
+	Pagination database.Pagination `json:"pagination"`
+	Filters    ProductListOptions  `json:"filters"`
+	QueryTime  time.Duration       `json:"query_time"`
+}
+
+// GetAllProducts retrieves products with comprehensive filtering, pagination, and error handling
+// This is the main production-ready method for listing products
+func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListOptions) (*ProductListResult, error) {
+	startTime := time.Now()
+
+	// Validate and apply defaults to options
+	if opts == nil {
+		opts = &ProductListOptions{}
+	}
+	ps.applyDefaultOptions(opts)
+
+	// Validate options
+	if err := ps.validateOptions(opts); err != nil {
+		ps.logger.Error("Invalid product list options", gecho.Field("error", err), gecho.Field("options", opts))
+		return nil, fmt.Errorf("invalid options: %w", err)
+	}
+
+	// Add query timeout if not set
+	queryCtx := ctx
+	if opts.Timeout > 0 {
+		var cancel context.CancelFunc
+		queryCtx, cancel = context.WithTimeout(ctx, opts.Timeout)
+		defer cancel()
+	}
+
+	// Build the query
+	query := database.Query[structs.Product](ps.db)
+
+	// Apply filters
+	query = ps.applyFilters(query, opts)
+
+	// Apply sorting
+	query = ps.applySorting(query, opts)
+
+	// Preload images if requested
+	if opts.IncludeImages {
+		query = query.With("Images")
+	}
+
+	// Execute paginated query
+	result, err := database.Paginate(query, queryCtx, opts.Page, opts.PageSize)
+	if err != nil {
+		ps.logger.Error("Failed to fetch products",
+			gecho.Field("error", err),
+			gecho.Field("page", opts.Page),
+			gecho.Field("pageSize", opts.PageSize),
+			gecho.Field("duration", time.Since(startTime)))
+		return nil, fmt.Errorf("failed to fetch products: %w", err)
+	}
+
+	// Log successful query
+	ps.logger.Debug("Products fetched successfully",
+		gecho.Field("count", len(result.Data)),
+		gecho.Field("total", result.Pagination.Total),
+		gecho.Field("page", result.Pagination.Page),
+		gecho.Field("pageSize", result.Pagination.PageSize),
+		gecho.Field("duration", time.Since(startTime)),
+	)
+
+	// Build response
+	return &ProductListResult{
+		Products:   result.Data,
+		Pagination: result.Pagination,
+		Filters:    *opts,
+		QueryTime:  time.Since(startTime),
+	}, nil
+}
+
+// GetProductByID retrieves a single product by ID with optional image preloading
+func (ps *ProductService) GetProductByID(ctx context.Context, id string, includeImages bool) (*structs.Product, error) {
+	startTime := time.Now()
+
+	query := database.Query[structs.Product](ps.db).
+		Where("id", id).
+		Timeout(5 * time.Second)
+
+	if includeImages {
+		query = query.With("Images")
+	}
+
+	product, err := query.First(ctx)
+	if err != nil {
+		ps.logger.Error("Failed to fetch product by ID",
+			gecho.Field("id", id),
+			gecho.Field("error", err),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+		return nil, fmt.Errorf("failed to fetch product: %w", err)
+	}
+
+	if product == nil {
+		ps.logger.Warn("Product not found", gecho.Field("id", id))
+		return nil, fmt.Errorf("product not found")
+	}
+
+	ps.logger.Debug("Product fetched by ID",
+		gecho.Field("id", id),
+		gecho.Field("duration", time.Since(startTime)),
+	)
+	return product, nil
+}
+
+// GetActiveProducts is a convenience method to get only active products
+func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize int, includeImages bool) (*ProductListResult, error) {
+	isActive := true
+	opts := &ProductListOptions{
+		Page:          page,
+		PageSize:      pageSize,
+		IsActive:      &isActive,
+		IncludeImages: includeImages,
+		SortBy:        "created_at",
+		SortDirection: "DESC",
+	}
+	return ps.GetAllProducts(ctx, opts)
+}
+
+// GetProductsBySKUs retrieves multiple products by their SKUs
+func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, includeImages bool) ([]structs.Product, error) {
+	startTime := time.Now()
+
+	if len(skus) == 0 {
+		return []structs.Product{}, nil
+	}
+
+	// Convert SKUs to interface slice
+	skuInterfaces := make([]any, len(skus))
+	for i, sku := range skus {
+		skuInterfaces[i] = sku
+	}
+
+	query := database.Query[structs.Product](ps.db).
+		WhereIn("sku", skuInterfaces).
+		Timeout(10 * time.Second)
+
+	if includeImages {
+		query = query.With("Images")
+	}
+
+	products, err := query.All(ctx)
+	if err != nil {
+		ps.logger.Error("Failed to fetch products by SKUs",
+			gecho.Field("skus", skus),
+			gecho.Field("error", err),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+		return nil, fmt.Errorf("failed to fetch products by SKUs: %w", err)
+	}
+
+	ps.logger.Debug("Products fetched by SKUs",
+		gecho.Field("count", len(products)),
+		gecho.Field("duration", time.Since(startTime)),
+	)
+	return products, nil
+}
+
+// GetProductCount returns the total count of products matching the filters
+func (ps *ProductService) GetProductCount(ctx context.Context, opts *ProductListOptions) (int, error) {
+	if opts == nil {
+		opts = &ProductListOptions{}
+	}
+
+	query := database.Query[structs.Product](ps.db)
+	query = ps.applyFilters(query, opts)
+
+	count, err := query.Count(ctx)
+	if err != nil {
+		ps.logger.Error("Failed to count products", gecho.Field("error", err), gecho.Field("options", opts))
+		return 0, fmt.Errorf("failed to count products: %w", err)
+	}
+
+	return count, nil
+}
+
+// applyDefaultOptions sets default values for unspecified options
+func (ps *ProductService) applyDefaultOptions(opts *ProductListOptions) {
+	if opts.Page < 1 {
+		opts.Page = 1
+	}
+	if opts.PageSize < 1 {
+		opts.PageSize = 20
+	}
+	if opts.PageSize > 100 {
+		opts.PageSize = 100 // Max page size for performance
+	}
+	if opts.SortBy == "" {
+		opts.SortBy = "created_at"
+	}
+	if opts.SortDirection == "" {
+		opts.SortDirection = "DESC"
+	}
+	if opts.Timeout == 0 {
+		opts.Timeout = 30 * time.Second // Default 30s timeout
+	}
+}
+
+// validateOptions validates the provided options
+func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
+	// Validate sort field
+	validSortFields := map[string]bool{
+		"created_at": true,
+		"updated_at": true,
+		"price":      true,
+		"name":       true,
+		"stock":      true,
+		"sku":        true,
+	}
+	if !validSortFields[opts.SortBy] {
+		return fmt.Errorf("invalid sort field: %s", opts.SortBy)
+	}
+
+	// Validate sort direction
+	if opts.SortDirection != "ASC" && opts.SortDirection != "DESC" {
+		return fmt.Errorf("invalid sort direction: %s (must be ASC or DESC)", opts.SortDirection)
+	}
+
+	// Validate product type if specified
+	if opts.ProductType != "" {
+		if opts.ProductType != string(structs.Flower) && opts.ProductType != string(structs.Bouquet) {
+			return fmt.Errorf("invalid product type: %s", opts.ProductType)
+		}
+	}
+
+	// Validate size if specified
+	if opts.Size != "" {
+		if opts.Size != string(structs.SizeSmall) &&
+			opts.Size != string(structs.SizeMedium) &&
+			opts.Size != string(structs.SizeLarge) {
+			return fmt.Errorf("invalid size: %s", opts.Size)
+		}
+	}
+
+	// Validate price range
+	if opts.MinPrice != nil && opts.MaxPrice != nil && *opts.MinPrice > *opts.MaxPrice {
+		return fmt.Errorf("min_price cannot be greater than max_price")
+	}
+
+	return nil
+}
+
+// applyFilters applies all filter conditions to the query
+func (ps *ProductService) applyFilters(query *database.QueryBuilder[structs.Product], opts *ProductListOptions) *database.QueryBuilder[structs.Product] {
+	// Filter by active status (default to active only if not specified)
+	if opts.IsActive != nil {
+		query = query.Where("is_active", *opts.IsActive)
+	}
+
+	// Filter by product type
+	if opts.ProductType != "" {
+		query = query.Where("product_type", opts.ProductType)
+	}
+
+	// Filter by price range
+	if opts.MinPrice != nil {
+		query = query.WhereOp("price", ">=", *opts.MinPrice)
+	}
+	if opts.MaxPrice != nil {
+		query = query.WhereOp("price", "<=", *opts.MaxPrice)
+	}
+
+	// Filter by size
+	if opts.Size != "" {
+		query = query.Where("size", opts.Size)
+	}
+
+	// Filter by colors (OR condition - product has ANY of the specified colors)
+	if len(opts.Colors) > 0 {
+		// Convert colors to interface slice
+		colorInterfaces := make([]any, len(opts.Colors))
+		for i, color := range opts.Colors {
+			colorInterfaces[i] = color
+		}
+		query = query.WhereRaw("colors && ?", colorInterfaces) // PostgreSQL array overlap operator
+	}
+
+	// Filter by stock availability
+	if opts.InStock != nil && *opts.InStock {
+		query = query.WhereOp("stock", ">", 0)
+	}
+
+	// Search in name, description, or SKU
+	if opts.SearchTerm != "" {
+		searchPattern := "%" + opts.SearchTerm + "%"
+		query = query.WhereRaw(
+			"(name ILIKE ? OR description ILIKE ? OR sku ILIKE ?)",
+			searchPattern, searchPattern, searchPattern,
+		)
+	}
+
+	// Filter by specific SKUs
+	if len(opts.SKUs) > 0 {
+		skuInterfaces := make([]any, len(opts.SKUs))
+		for i, sku := range opts.SKUs {
+			skuInterfaces[i] = sku
+		}
+		query = query.WhereIn("sku", skuInterfaces)
+	}
+
+	// Exclude specific SKUs
+	if len(opts.ExcludeSKUs) > 0 {
+		skuInterfaces := make([]any, len(opts.ExcludeSKUs))
+		for i, sku := range opts.ExcludeSKUs {
+			skuInterfaces[i] = sku
+		}
+		query = query.WhereNotIn("sku", skuInterfaces)
+	}
+
+	// Filter by creation date range
+	if opts.CreatedAfter != nil {
+		query = query.WhereOp("created_at", ">=", *opts.CreatedAfter)
+	}
+	if opts.CreatedBefore != nil {
+		query = query.WhereOp("created_at", "<=", *opts.CreatedBefore)
+	}
+
+	return query
+}
+
+// applySorting applies sorting to the query
+func (ps *ProductService) applySorting(query *database.QueryBuilder[structs.Product], opts *ProductListOptions) *database.QueryBuilder[structs.Product] {
+	var direction database.OrderDirection
+	if opts.SortDirection == "ASC" {
+		direction = database.ASC
+	} else {
+		direction = database.DESC
+	}
+
+	query = query.OrderBy(opts.SortBy, direction)
+
+	// Add secondary sort by ID for consistent ordering
+	query = query.OrderBy("id", database.ASC)
+
+	return query
+}

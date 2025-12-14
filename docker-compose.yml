@@ -1,0 +1,26 @@
+services:
+  mamabloemetjes:
+    networks:
+      - mamabloemetjes-net
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mamabloemetjes
+    env_file:
+      - .env
+    volumes:
+      - .env:/app/.env:ro
+      # Cache Go build + module deps
+      - go-build-cache:/root/.cache/go-build
+      - go-mod-cache:/go/pkg/mod
+    ports:
+      - "8082:8082"
+    restart: unless-stopped
+
+networks:
+  mamabloemetjes-net:
+    external: true
+
+volumes:
+  go-build-cache:
+  go-mod-cache:
