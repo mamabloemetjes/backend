@@ -30,7 +30,6 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 
 	// Log the request
 	p.logger.Debug("Fetching products",
-		gecho.Field("options", opts),
 		gecho.Field("include_images", opts.IncludeImages),
 		gecho.Field("page", opts.Page),
 		gecho.Field("page_size", opts.PageSize),
