@@ -18,15 +18,18 @@ import (
 var logger *gecho.Logger
 var cfg *structs.Config
 
+// init function to load environment variables and initialize logger and database
 func init() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		logger.Warn("No .env file found or error loading .env file, proceeding with system environment variables")
-	}
+	envErr := godotenv.Load()
+
 	cfg = config.GetConfig()
 	logger = config.InitializeLogger()
-	err := database.Initialize()
-	if err != nil {
+
+	if envErr != nil {
+		logger.Warn("No .env file found or error loading .env file, proceeding with system environment variables")
+	}
+
+	if err := database.Initialize(); err != nil {
 		logger.Fatal("Failed to initialize database", gecho.Field("error", err))
 	}
 }
