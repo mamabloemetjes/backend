@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/structs"
+	"mamabloemetjes_server/structs/tables"
 	"time"
 
 	"github.com/MonkyMars/gecho"
@@ -55,7 +56,7 @@ type ProductListOptions struct {
 
 // ProductListResult wraps the product list response with metadata
 type ProductListResult struct {
-	Products   []structs.Product   `json:"products"`
+	Products   []tables.Product    `json:"products"`
 	Pagination database.Pagination `json:"pagination"`
 	Filters    ProductListOptions  `json:"filters"`
 	QueryTime  time.Duration       `json:"query_time"`
@@ -87,7 +88,7 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 	}
 
 	// Build the query
-	query := database.Query[structs.Product](ps.db)
+	query := database.Query[tables.Product](ps.db)
 
 	// Apply filters
 	query = ps.applyFilters(query, opts)
@@ -130,10 +131,10 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 }
 
 // GetProductByID retrieves a single product by ID with optional image preloading
-func (ps *ProductService) GetProductByID(ctx context.Context, id string, includeImages bool) (*structs.Product, error) {
+func (ps *ProductService) GetProductByID(ctx context.Context, id string, includeImages bool) (*tables.Product, error) {
 	startTime := time.Now()
 
-	query := database.Query[structs.Product](ps.db).
+	query := database.Query[tables.Product](ps.db).
 		Where("id", id).
 		Timeout(5 * time.Second)
 
@@ -178,11 +179,11 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 }
 
 // GetProductsBySKUs retrieves multiple products by their SKUs
-func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, includeImages bool) ([]structs.Product, error) {
+func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, includeImages bool) ([]tables.Product, error) {
 	startTime := time.Now()
 
 	if len(skus) == 0 {
-		return []structs.Product{}, nil
+		return []tables.Product{}, nil
 	}
 
 	// Convert SKUs to interface slice
@@ -191,7 +192,7 @@ func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, 
 		skuInterfaces[i] = sku
 	}
 
-	query := database.Query[structs.Product](ps.db).
+	query := database.Query[tables.Product](ps.db).
 		WhereIn("sku", skuInterfaces).
 		Timeout(10 * time.Second)
 
@@ -222,7 +223,7 @@ func (ps *ProductService) GetProductCount(ctx context.Context, opts *ProductList
 		opts = &ProductListOptions{}
 	}
 
-	query := database.Query[structs.Product](ps.db)
+	query := database.Query[tables.Product](ps.db)
 	query = ps.applyFilters(query, opts)
 
 	count, err := query.Count(ctx)
@@ -301,7 +302,7 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 }
 
 // applyFilters applies all filter conditions to the query
-func (ps *ProductService) applyFilters(query *database.QueryBuilder[structs.Product], opts *ProductListOptions) *database.QueryBuilder[structs.Product] {
+func (ps *ProductService) applyFilters(query *database.QueryBuilder[tables.Product], opts *ProductListOptions) *database.QueryBuilder[tables.Product] {
 	// Filter by active status (default to active only if not specified)
 	if opts.IsActive != nil {
 		query = query.Where("is_active", *opts.IsActive)
@@ -379,7 +380,7 @@ func (ps *ProductService) applyFilters(query *database.QueryBuilder[structs.Prod
 }
 
 // applySorting applies sorting to the query
-func (ps *ProductService) applySorting(query *database.QueryBuilder[structs.Product], opts *ProductListOptions) *database.QueryBuilder[structs.Product] {
+func (ps *ProductService) applySorting(query *database.QueryBuilder[tables.Product], opts *ProductListOptions) *database.QueryBuilder[tables.Product] {
 	var direction database.OrderDirection
 	if opts.SortDirection == "ASC" {
 		direction = database.ASC

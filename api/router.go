@@ -22,6 +22,9 @@ func App() chi.Router {
 	// db
 	db := database.GetInstance()
 
+	// config
+	cfg := config.GetConfig()
+
 	// Initialize middleware
 	mw := middleware.NewMiddleware()
 
@@ -34,7 +37,7 @@ func App() chi.Router {
 	r.Use(mw.SetupCORS().Handler)
 
 	// Register all routes
-	NewRouterManager(standardLogger, db).RegisterRoutes(r)
+	NewRouterManager(standardLogger, db, cfg).RegisterRoutes(r)
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		gecho.Success(w,

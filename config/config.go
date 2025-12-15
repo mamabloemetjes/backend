@@ -42,6 +42,12 @@ func GetConfig() *structs.Config {
 				ReadTimeout:  getEnvAsTimeDuration("DB_READ_TIMEOUT", 5*time.Second),
 				WriteTimeout: getEnvAsTimeDuration("DB_WRITE_TIMEOUT", 5*time.Second),
 			},
+			Auth: &structs.AuthConfig{
+				AccessTokenSecret:  getEnvAsString("AUTH_ACCESS_TOKEN_SECRET", "default_access_secret"),
+				AccessTokenExpiry:  getEnvAsTimeDuration("AUTH_ACCESS_TOKEN_EXPIRY", 15*time.Minute),
+				RefreshTokenSecret: getEnvAsString("AUTH_REFRESH_TOKEN_SECRET", "default_refresh_secret"),
+				RefreshTokenExpiry: getEnvAsTimeDuration("AUTH_REFRESH_TOKEN_EXPIRY", 7*24*time.Hour),
+			},
 		}
 	})
 	return configInstance
@@ -52,4 +58,8 @@ func GetLogLevel() string {
 		return "info"
 	}
 	return "debug"
+}
+
+func IsProduction() bool {
+	return GetConfig().Server.Environment == "production"
 }

@@ -6,6 +6,7 @@ type Config struct {
 	Server   *ServerConfig
 	Cors     *CorsConfig
 	Database *DatabaseConfig
+	Auth     *AuthConfig
 }
 
 type ServerConfig struct {
@@ -37,4 +38,11 @@ type DatabaseConfig struct {
 	MaxLifetime  time.Duration // in seconds
 	ReadTimeout  time.Duration // in seconds
 	WriteTimeout time.Duration // in seconds
+}
+
+type AuthConfig struct {
+	AccessTokenSecret  string
+	AccessTokenExpiry  time.Duration
+	RefreshTokenSecret string
+	RefreshTokenExpiry time.Duration
 }
