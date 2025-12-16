@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/MonkyMars/gecho"
-	"github.com/go-pg/pg/v10"
+	"github.com/uptrace/bun"
 )
 
 type UpdateProductRequest struct {
@@ -94,7 +94,7 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 			for i, color := range updateReq.Colors {
 				normalizedColors[i] = strings.ToLower(color)
 			}
-			updateData["colors"] = pg.Array(normalizedColors)
+			updateData["colors"] = bun.In(normalizedColors)
 		}
 
 		// Calculate subtotal if price, discount, or tax changed

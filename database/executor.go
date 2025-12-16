@@ -2,13 +2,14 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
-	"github.com/go-pg/pg/v10"
+	"github.com/uptrace/bun"
 )
 
-// All executes the query and returns all matching records
+// All executes the query and returns all matching records with automatic retry
 func (q *QueryBuilder[T]) All(ctx context.Context) ([]T, error) {
 	start := time.Now()
 	var data []T
@@ -20,75 +21,21 @@ func (q *QueryBuilder[T]) All(ctx context.Context) ([]T, error) {
 		defer cancel()
 	}
 
-	// Build the query
-	pgQuery := q.db.ModelContext(ctx, &data)
+	err := WithRetry(ctx, func() error {
+		data = nil // Reset on retry
 
-	// Apply table name if specified
-	if q.tableName != "" {
-		pgQuery = pgQuery.Table(q.tableName)
-	}
-
-	// Apply SELECT columns
-	if len(q.selectCols) > 0 {
-		for _, col := range q.selectCols {
-			pgQuery = pgQuery.Column(col)
+		// When relations are being preloaded, we need to use Model() with the slice
+		// This is required for has-many and many-to-many relationships
+		if len(q.relations) > 0 {
+			query := q.buildBunQueryWithModel(&data)
+			return query.Scan(ctx)
 		}
-	}
 
-	// Apply DISTINCT
-	if q.distinct {
-		pgQuery = pgQuery.Distinct()
-	}
+		// No relations, use the regular buildBunQuery approach
+		query := q.buildBunQuery()
+		return query.Scan(ctx, &data)
+	})
 
-	// Apply JOINs
-	for _, join := range q.joins {
-		pgQuery = pgQuery.Join(join.toSQL())
-	}
-
-	// Apply WHERE conditions
-	pgQuery = q.applyWhereConditions(pgQuery)
-
-	// Apply GROUP BY
-	for _, groupBy := range q.groupBys {
-		pgQuery = pgQuery.Group(groupBy)
-	}
-
-	// Apply HAVING
-	for _, having := range q.havings {
-		if having.IsRaw {
-			pgQuery = pgQuery.Having(having.RawSQL, having.RawArgs...)
-		} else {
-			pgQuery = pgQuery.Having(fmt.Sprintf("%s %s ?", having.Column, having.Operator), having.Value)
-		}
-	}
-
-	// Apply ORDER BY
-	for _, order := range q.orders {
-		pgQuery = pgQuery.Order(fmt.Sprintf("%s %s", order.Column, order.Direction))
-	}
-
-	// Apply LIMIT
-	if q.limitVal != nil {
-		pgQuery = pgQuery.Limit(*q.limitVal)
-	}
-
-	// Apply OFFSET
-	if q.offsetVal != nil {
-		pgQuery = pgQuery.Offset(*q.offsetVal)
-	}
-
-	// Apply relations (preloading)
-	for _, relation := range q.relations {
-		pgQuery = pgQuery.Relation(relation)
-	}
-
-	// Apply FOR UPDATE
-	if q.forUpdate {
-		pgQuery = pgQuery.For("UPDATE")
-	}
-
-	// Execute query
-	err := pgQuery.Select()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute select query: %w (took %v)", err, time.Since(start))
 	}
@@ -96,7 +43,7 @@ func (q *QueryBuilder[T]) All(ctx context.Context) ([]T, error) {
 	return data, nil
 }
 
-// First executes the query and returns the first matching record
+// First executes the query and returns the first matching record with automatic retry
 func (q *QueryBuilder[T]) First(ctx context.Context) (*T, error) {
 	start := time.Now()
 	var data T
@@ -108,44 +55,15 @@ func (q *QueryBuilder[T]) First(ctx context.Context) (*T, error) {
 		defer cancel()
 	}
 
-	// Build the query
-	pgQuery := q.db.ModelContext(ctx, &data)
+	err := WithRetry(ctx, func() error {
+		query := q.buildBunQuery().Limit(1)
+		return query.Scan(ctx, &data)
+	})
 
-	// Apply table name if specified
-	if q.tableName != "" {
-		pgQuery = pgQuery.Table(q.tableName)
-	}
-
-	// Apply SELECT columns
-	if len(q.selectCols) > 0 {
-		for _, col := range q.selectCols {
-			pgQuery = pgQuery.Column(col)
-		}
-	}
-
-	// Apply JOINs
-	for _, join := range q.joins {
-		pgQuery = pgQuery.Join(join.toSQL())
-	}
-
-	// Apply WHERE conditions
-	pgQuery = q.applyWhereConditions(pgQuery)
-
-	// Apply ORDER BY
-	for _, order := range q.orders {
-		pgQuery = pgQuery.Order(fmt.Sprintf("%s %s", order.Column, order.Direction))
-	}
-
-	// Apply relations (preloading)
-	for _, relation := range q.relations {
-		pgQuery = pgQuery.Relation(relation)
-	}
-
-	// Execute query
-	err := pgQuery.First()
 	if err != nil {
-		if err == pg.ErrNoRows {
-			return nil, nil // Return nil without error for no results
+		// Return nil for no rows instead of error
+		if err == sql.ErrNoRows {
+			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to execute first query: %w (took %v)", err, time.Since(start))
 	}
@@ -153,10 +71,10 @@ func (q *QueryBuilder[T]) First(ctx context.Context) (*T, error) {
 	return &data, nil
 }
 
-// Count executes the query and returns the count of matching records
+// Count executes the query and returns the count of matching records with automatic retry
 func (q *QueryBuilder[T]) Count(ctx context.Context) (int, error) {
 	start := time.Now()
-	var data []T
+	var count int
 
 	// Apply timeout if specified
 	if q.timeout > 0 {
@@ -165,24 +83,13 @@ func (q *QueryBuilder[T]) Count(ctx context.Context) (int, error) {
 		defer cancel()
 	}
 
-	// Build the query
-	pgQuery := q.db.ModelContext(ctx, &data)
+	err := WithRetry(ctx, func() error {
+		query := q.buildBunQuery()
+		var err error
+		count, err = query.Count(ctx)
+		return err
+	})
 
-	// Apply table name if specified
-	if q.tableName != "" {
-		pgQuery = pgQuery.Table(q.tableName)
-	}
-
-	// Apply JOINs
-	for _, join := range q.joins {
-		pgQuery = pgQuery.Join(join.toSQL())
-	}
-
-	// Apply WHERE conditions
-	pgQuery = q.applyWhereConditions(pgQuery)
-
-	// Execute count query
-	count, err := pgQuery.Count()
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute count query: %w (took %v)", err, time.Since(start))
 	}
@@ -199,7 +106,7 @@ func (q *QueryBuilder[T]) Exists(ctx context.Context) (bool, error) {
 	return count > 0, nil
 }
 
-// Insert inserts a new record and returns it
+// Insert inserts a new record and returns it with automatic retry
 func (q *QueryBuilder[T]) Insert(ctx context.Context, data *T) (*T, error) {
 	start := time.Now()
 
@@ -210,16 +117,17 @@ func (q *QueryBuilder[T]) Insert(ctx context.Context, data *T) (*T, error) {
 		defer cancel()
 	}
 
-	// Build the query
-	pgQuery := q.db.ModelContext(ctx, data)
+	err := WithRetry(ctx, func() error {
+		query := q.db.NewInsert().Model(data)
 
-	// Apply table name if specified
-	if q.tableName != "" {
-		pgQuery = pgQuery.Table(q.tableName)
-	}
+		if q.tableName != "" {
+			query = query.Table(q.tableName)
+		}
 
-	// Execute insert
-	_, err := pgQuery.Insert()
+		_, err := query.Exec(ctx)
+		return err
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute insert query: %w (took %v)", err, time.Since(start))
 	}
@@ -227,7 +135,7 @@ func (q *QueryBuilder[T]) Insert(ctx context.Context, data *T) (*T, error) {
 	return data, nil
 }
 
-// InsertMany inserts multiple records
+// InsertMany inserts multiple records with automatic retry
 func (q *QueryBuilder[T]) InsertMany(ctx context.Context, data []T) ([]T, error) {
 	start := time.Now()
 
@@ -242,16 +150,17 @@ func (q *QueryBuilder[T]) InsertMany(ctx context.Context, data []T) ([]T, error)
 		defer cancel()
 	}
 
-	// Build the query
-	pgQuery := q.db.ModelContext(ctx, &data)
+	err := WithRetry(ctx, func() error {
+		query := q.db.NewInsert().Model(&data)
 
-	// Apply table name if specified
-	if q.tableName != "" {
-		pgQuery = pgQuery.Table(q.tableName)
-	}
+		if q.tableName != "" {
+			query = query.Table(q.tableName)
+		}
 
-	// Execute bulk insert
-	_, err := pgQuery.Insert()
+		_, err := query.Exec(ctx)
+		return err
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute bulk insert query: %w (took %v)", err, time.Since(start))
 	}
@@ -259,9 +168,10 @@ func (q *QueryBuilder[T]) InsertMany(ctx context.Context, data []T) ([]T, error)
 	return data, nil
 }
 
-// Update updates records matching the query
+// Update updates records matching the query with automatic retry
 func (q *QueryBuilder[T]) Update(ctx context.Context, data any) (int, error) {
 	start := time.Now()
+	var rowsAffected int64
 
 	// Apply timeout if specified
 	if q.timeout > 0 {
@@ -270,42 +180,47 @@ func (q *QueryBuilder[T]) Update(ctx context.Context, data any) (int, error) {
 		defer cancel()
 	}
 
-	// Build the query
-	var model T
-	pgQuery := q.db.ModelContext(ctx, &model)
+	err := WithRetry(ctx, func() error {
+		var model T
+		query := q.db.NewUpdate().Model(&model)
 
-	// Apply table name if specified
-	if q.tableName != "" {
-		pgQuery = pgQuery.Table(q.tableName)
-	}
-
-	// Apply WHERE conditions
-	pgQuery = q.applyWhereConditions(pgQuery)
-
-	// Handle data based on type
-	switch v := data.(type) {
-	case map[string]any:
-		// Update with map
-		for key, value := range v {
-			pgQuery = pgQuery.Set("? = ?", pg.Ident(key), value)
+		if q.tableName != "" {
+			query = query.Table(q.tableName)
 		}
-	case *T:
-		// Update with struct
-		pgQuery = pgQuery.Model(v)
-	default:
-		return 0, fmt.Errorf("unsupported data type for update: %T", data)
-	}
 
-	// Execute update
-	res, err := pgQuery.Update()
+		// Apply WHERE conditions using the same helper
+		query = q.applyWhereConditionsToUpdate(query)
+
+		// Handle data based on type
+		switch v := data.(type) {
+		case map[string]any:
+			// Update with map
+			for key, value := range v {
+				query = query.Set("? = ?", bun.Ident(key), value)
+			}
+		case *T:
+			// Update with struct
+			query = query.Model(v)
+		default:
+			return fmt.Errorf("unsupported data type for update: %T", data)
+		}
+
+		res, err := query.Exec(ctx)
+		if err != nil {
+			return err
+		}
+		rowsAffected, _ = res.RowsAffected()
+		return nil
+	})
+
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute update query: %w (took %v)", err, time.Since(start))
 	}
 
-	return res.RowsAffected(), nil
+	return int(rowsAffected), nil
 }
 
-// UpdateReturning updates records and returns them
+// UpdateReturning updates records and returns them with automatic retry
 func (q *QueryBuilder[T]) UpdateReturning(ctx context.Context, data any) ([]T, error) {
 	start := time.Now()
 	var results []T
@@ -317,36 +232,37 @@ func (q *QueryBuilder[T]) UpdateReturning(ctx context.Context, data any) ([]T, e
 		defer cancel()
 	}
 
-	// Build the query
-	pgQuery := q.db.ModelContext(ctx, &results)
+	err := WithRetry(ctx, func() error {
+		results = nil // Reset on retry
+		var model T
+		query := q.db.NewUpdate().Model(&model)
 
-	// Apply table name if specified
-	if q.tableName != "" {
-		pgQuery = pgQuery.Table(q.tableName)
-	}
-
-	// Apply WHERE conditions
-	pgQuery = q.applyWhereConditions(pgQuery)
-
-	// Handle data based on type
-	switch v := data.(type) {
-	case map[string]any:
-		// Update with map
-		for key, value := range v {
-			pgQuery = pgQuery.Set("? = ?", pg.Ident(key), value)
+		if q.tableName != "" {
+			query = query.Table(q.tableName)
 		}
-	case *T:
-		// Update with struct
-		pgQuery = pgQuery.Model(v)
-	default:
-		return nil, fmt.Errorf("unsupported data type for update: %T", data)
-	}
 
-	// Add RETURNING *
-	pgQuery = pgQuery.Returning("*")
+		// Apply WHERE conditions
+		query = q.applyWhereConditionsToUpdate(query)
 
-	// Execute update
-	_, err := pgQuery.Update()
+		// Handle data based on type
+		switch v := data.(type) {
+		case map[string]any:
+			for key, value := range v {
+				query = query.Set("? = ?", bun.Ident(key), value)
+			}
+		case *T:
+			query = query.Model(v)
+		default:
+			return fmt.Errorf("unsupported data type for update: %T", data)
+		}
+
+		// Add RETURNING *
+		query = query.Returning("*")
+
+		_, err := query.Exec(ctx, &results)
+		return err
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute update query: %w (took %v)", err, time.Since(start))
 	}
@@ -354,9 +270,10 @@ func (q *QueryBuilder[T]) UpdateReturning(ctx context.Context, data any) ([]T, e
 	return results, nil
 }
 
-// Delete deletes records matching the query
+// Delete deletes records matching the query with automatic retry
 func (q *QueryBuilder[T]) Delete(ctx context.Context) (int, error) {
 	start := time.Now()
+	var rowsAffected int64
 
 	// Apply timeout if specified
 	if q.timeout > 0 {
@@ -365,28 +282,33 @@ func (q *QueryBuilder[T]) Delete(ctx context.Context) (int, error) {
 		defer cancel()
 	}
 
-	// Build the query
-	var model T
-	pgQuery := q.db.ModelContext(ctx, &model)
+	err := WithRetry(ctx, func() error {
+		var model T
+		query := q.db.NewDelete().Model(&model)
 
-	// Apply table name if specified
-	if q.tableName != "" {
-		pgQuery = pgQuery.Table(q.tableName)
-	}
+		if q.tableName != "" {
+			query = query.Table(q.tableName)
+		}
 
-	// Apply WHERE conditions
-	pgQuery = q.applyWhereConditions(pgQuery)
+		// Apply WHERE conditions
+		query = q.applyWhereConditionsToDelete(query)
 
-	// Execute delete
-	res, err := pgQuery.Delete()
+		res, err := query.Exec(ctx)
+		if err != nil {
+			return err
+		}
+		rowsAffected, _ = res.RowsAffected()
+		return nil
+	})
+
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute delete query: %w (took %v)", err, time.Since(start))
 	}
 
-	return res.RowsAffected(), nil
+	return int(rowsAffected), nil
 }
 
-// DeleteReturning deletes records and returns them
+// DeleteReturning deletes records and returns them with automatic retry
 func (q *QueryBuilder[T]) DeleteReturning(ctx context.Context) ([]T, error) {
 	start := time.Now()
 	var results []T
@@ -398,22 +320,25 @@ func (q *QueryBuilder[T]) DeleteReturning(ctx context.Context) ([]T, error) {
 		defer cancel()
 	}
 
-	// Build the query
-	pgQuery := q.db.ModelContext(ctx, &results)
+	err := WithRetry(ctx, func() error {
+		results = nil // Reset on retry
+		var model T
+		query := q.db.NewDelete().Model(&model)
 
-	// Apply table name if specified
-	if q.tableName != "" {
-		pgQuery = pgQuery.Table(q.tableName)
-	}
+		if q.tableName != "" {
+			query = query.Table(q.tableName)
+		}
 
-	// Apply WHERE conditions
-	pgQuery = q.applyWhereConditions(pgQuery)
+		// Apply WHERE conditions
+		query = q.applyWhereConditionsToDelete(query)
 
-	// Add RETURNING *
-	pgQuery = pgQuery.Returning("*")
+		// Add RETURNING *
+		query = query.Returning("*")
 
-	// Execute delete
-	_, err := pgQuery.Delete()
+		_, err := query.Exec(ctx, &results)
+		return err
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute delete query: %w (took %v)", err, time.Since(start))
 	}
@@ -421,12 +346,12 @@ func (q *QueryBuilder[T]) DeleteReturning(ctx context.Context) ([]T, error) {
 	return results, nil
 }
 
-// applyWhereConditions applies WHERE conditions to a go-pg query
-func (q *QueryBuilder[T]) applyWhereConditions(pgQuery *pg.Query) *pg.Query {
+// applyWhereConditionsToUpdate applies WHERE conditions to a Bun UpdateQuery
+func (q *QueryBuilder[T]) applyWhereConditionsToUpdate(query *bun.UpdateQuery) *bun.UpdateQuery {
 	// Apply simple WHERE conditions
 	for _, where := range q.wheres {
 		if where.IsRaw {
-			pgQuery = pgQuery.Where(where.RawSQL, where.RawArgs...)
+			query = query.Where(where.RawSQL, where.RawArgs...)
 		} else {
 			var condition string
 			if where.Negate {
@@ -434,33 +359,32 @@ func (q *QueryBuilder[T]) applyWhereConditions(pgQuery *pg.Query) *pg.Query {
 			} else {
 				if where.Operator == "IS NULL" || where.Operator == "IS NOT NULL" {
 					condition = fmt.Sprintf("%s %s", where.Column, where.Operator)
-					pgQuery = pgQuery.Where(condition)
+					query = query.Where(condition)
 					continue
 				}
 				condition = fmt.Sprintf("%s %s ?", where.Column, where.Operator)
 			}
-			pgQuery = pgQuery.Where(condition, where.Value)
+			query = query.Where(condition, where.Value)
 		}
 	}
 
 	// Apply WHERE groups
 	for _, group := range q.whereGroups {
-		pgQuery = q.applyWhereGroup(pgQuery, group)
+		query = q.applyWhereGroupToUpdate(query, group)
 	}
 
-	return pgQuery
+	return query
 }
 
-// applyWhereGroup applies a WHERE group to a go-pg query
-func (q *QueryBuilder[T]) applyWhereGroup(pgQuery *pg.Query, group *WhereGroup) *pg.Query {
+// applyWhereGroupToUpdate applies a WHERE group to a Bun UpdateQuery
+func (q *QueryBuilder[T]) applyWhereGroupToUpdate(query *bun.UpdateQuery, group *WhereGroup) *bun.UpdateQuery {
 	if len(group.Conditions) == 0 && len(group.Groups) == 0 {
-		return pgQuery
+		return query
 	}
 
 	var conditions []string
 	var args []any
 
-	// Build conditions
 	for _, cond := range group.Conditions {
 		if cond.IsRaw {
 			conditions = append(conditions, cond.RawSQL)
@@ -477,30 +401,79 @@ func (q *QueryBuilder[T]) applyWhereGroup(pgQuery *pg.Query, group *WhereGroup) 
 		}
 	}
 
-	// Build group SQL
 	if len(conditions) > 0 {
 		groupSQL := "(" + joinStrings(conditions, " "+group.Connector+" ") + ")"
 		if group.Negate {
 			groupSQL = "NOT " + groupSQL
 		}
-		pgQuery = pgQuery.Where(groupSQL, args...)
+		query = query.Where(groupSQL, args...)
 	}
 
-	return pgQuery
+	return query
 }
 
-// Helper function to join strings
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	if len(strs) == 1 {
-		return strs[0]
+// applyWhereConditionsToDelete applies WHERE conditions to a Bun DeleteQuery
+func (q *QueryBuilder[T]) applyWhereConditionsToDelete(query *bun.DeleteQuery) *bun.DeleteQuery {
+	// Apply simple WHERE conditions
+	for _, where := range q.wheres {
+		if where.IsRaw {
+			query = query.Where(where.RawSQL, where.RawArgs...)
+		} else {
+			var condition string
+			if where.Negate {
+				condition = fmt.Sprintf("NOT (%s %s ?)", where.Column, where.Operator)
+			} else {
+				if where.Operator == "IS NULL" || where.Operator == "IS NOT NULL" {
+					condition = fmt.Sprintf("%s %s", where.Column, where.Operator)
+					query = query.Where(condition)
+					continue
+				}
+				condition = fmt.Sprintf("%s %s ?", where.Column, where.Operator)
+			}
+			query = query.Where(condition, where.Value)
+		}
 	}
 
-	result := strs[0]
-	for i := 1; i < len(strs); i++ {
-		result += sep + strs[i]
+	// Apply WHERE groups
+	for _, group := range q.whereGroups {
+		query = q.applyWhereGroupToDelete(query, group)
 	}
-	return result
+
+	return query
+}
+
+// applyWhereGroupToDelete applies a WHERE group to a Bun DeleteQuery
+func (q *QueryBuilder[T]) applyWhereGroupToDelete(query *bun.DeleteQuery, group *WhereGroup) *bun.DeleteQuery {
+	if len(group.Conditions) == 0 && len(group.Groups) == 0 {
+		return query
+	}
+
+	var conditions []string
+	var args []any
+
+	for _, cond := range group.Conditions {
+		if cond.IsRaw {
+			conditions = append(conditions, cond.RawSQL)
+			args = append(args, cond.RawArgs...)
+		} else {
+			var condStr string
+			if cond.Operator == "IS NULL" || cond.Operator == "IS NOT NULL" {
+				condStr = fmt.Sprintf("%s %s", cond.Column, cond.Operator)
+			} else {
+				condStr = fmt.Sprintf("%s %s ?", cond.Column, cond.Operator)
+				args = append(args, cond.Value)
+			}
+			conditions = append(conditions, condStr)
+		}
+	}
+
+	if len(conditions) > 0 {
+		groupSQL := "(" + joinStrings(conditions, " "+group.Connector+" ") + ")"
+		if group.Negate {
+			groupSQL = "NOT " + groupSQL
+		}
+		query = query.Where(groupSQL, args...)
+	}
+
+	return query
 }

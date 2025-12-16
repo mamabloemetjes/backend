@@ -52,7 +52,7 @@ func (hs *HealthService) GetServerHealthStatus() serverHealthStatus {
 
 func (hs *HealthService) GetDatabaseHealthStatus() (databaseHealthStatus, error) {
 	start := time.Now()
-	err := hs.db.Ping(context.Background())
+	err := hs.db.PingContext(context.Background())
 	elapsed := time.Since(start).Milliseconds()
 
 	dbStatus := databaseHealthStatus{

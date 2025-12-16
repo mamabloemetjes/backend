@@ -98,7 +98,7 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 
 	// Preload images if requested
 	if opts.IncludeImages {
-		query = query.With("Images")
+		query = query.Relation("Images")
 	}
 
 	// Execute paginated query
@@ -139,7 +139,7 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 		Timeout(5 * time.Second)
 
 	if includeImages {
-		query = query.With("Images")
+		query = query.Relation("Images")
 	}
 
 	product, err := query.First(ctx)
@@ -197,7 +197,7 @@ func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, 
 		Timeout(10 * time.Second)
 
 	if includeImages {
-		query = query.With("Images")
+		query = query.Relation("Images")
 	}
 
 	products, err := query.All(ctx)

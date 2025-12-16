@@ -3,7 +3,7 @@ package lib
 import (
 	"errors"
 
-	"github.com/go-pg/pg/v10"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Database errors
@@ -19,15 +19,25 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 )
 
+// MapPgError maps pgx/PostgreSQL errors to custom application errors
 func MapPgError(err error) error {
-	var pgErr pg.Error
+	if err == nil {
+		return nil
+	}
+
+	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		switch pgErr.Field('C') { // SQLSTATE
+		switch pgErr.Code {
 		case "23505": // unique_violation
+			return ErrConflict
+		case "23503": // foreign_key_violation
 			return ErrConflict
 		case "P0002": // no_data_found
 			return ErrNotFound
+		case "02000": // no_data
+			return ErrNotFound
 		}
 	}
+
 	return err
 }
