@@ -7,6 +7,7 @@ import (
 	"mamabloemetjes_server/config"
 	"time"
 
+	"github.com/MonkyMars/gecho"
 	"github.com/go-pg/pg/v10"
 )
 
@@ -36,8 +37,15 @@ func Connect() (*DB, error) {
 	opts.MaxConnAge = dbCfg.MaxLifetime
 	opts.ReadTimeout = dbCfg.ReadTimeout
 	opts.WriteTimeout = dbCfg.WriteTimeout
+	opts.IdleTimeout = dbCfg.MaxIdleTime
+	opts.IdleCheckFrequency = 1 * time.Minute // Check for idle connections every minute
+	opts.PoolTimeout = 30 * time.Second       // Wait up to 30s for a connection from the pool
 
+	// Create the database connection
 	db := pg.Connect(opts)
+
+	// Add connection hook to log and handle connection errors
+	db.AddQueryHook(&connectionHealthHook{logger: logger})
 
 	// Test the connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -96,4 +104,40 @@ func (db *DB) Health() error {
 // GetStats returns connection pool statistics for monitoring
 func (db *DB) GetStats() *pg.PoolStats {
 	return db.PoolStats()
+}
+
+// connectionHealthHook implements pg.QueryHook to monitor connection health
+type connectionHealthHook struct {
+	logger *gecho.Logger
+}
+
+func (h *connectionHealthHook) BeforeQuery(ctx context.Context, event *pg.QueryEvent) (context.Context, error) {
+	return ctx, nil
+}
+
+func (h *connectionHealthHook) AfterQuery(ctx context.Context, event *pg.QueryEvent) error {
+	// Log slow queries (over 1 second)
+	if event.Result != nil && event.Result.RowsAffected() >= 0 {
+		duration := time.Since(event.StartTime)
+		if duration > 1*time.Second {
+			query, _ := event.UnformattedQuery()
+			h.logger.Warn("Slow database query detected",
+				gecho.Field("query", string(query)),
+				gecho.Field("duration", duration),
+			)
+		}
+	}
+
+	// Handle EOF errors specifically
+	if event.Err != nil {
+		if event.Err.Error() == "EOF" || event.Err.Error() == "unexpected EOF" {
+			query, _ := event.UnformattedQuery()
+			h.logger.Error("Database connection EOF error - connection may have been closed by server",
+				gecho.Field("error", event.Err),
+				gecho.Field("query", string(query)),
+			)
+		}
+	}
+
+	return nil
 }

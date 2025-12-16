@@ -244,3 +244,13 @@ func (as *AuthService) GetUserByID(userId uuid.UUID) (*tables.User, error) {
 	}
 	return user, nil
 }
+
+func (as *AuthService) GetAccessTokenSecret() string {
+	secret := as.cfg.Auth.AccessTokenSecret
+	return secret
+}
+
+func (as *AuthService) GetRefreshTokenSecret() string {
+	secret := as.cfg.Auth.RefreshTokenSecret
+	return secret
+}

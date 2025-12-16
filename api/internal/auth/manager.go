@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"mamabloemetjes_server/api/middleware"
 	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/services"
 	"mamabloemetjes_server/structs"
@@ -14,23 +15,26 @@ type AuthRoutesManager struct {
 	db          *database.DB
 	authService *services.AuthService
 	cfg         *structs.Config
+	mw          *middleware.Middleware
 }
 
-func NewAuthRoutesManager(cfg *structs.Config, logger *gecho.Logger, db *database.DB) *AuthRoutesManager {
+func NewAuthRoutesManager(cfg *structs.Config, logger *gecho.Logger, db *database.DB, mw *middleware.Middleware) *AuthRoutesManager {
 	return &AuthRoutesManager{
 		logger:      logger,
 		db:          db,
 		authService: services.NewAuthService(cfg, logger, db),
 		cfg:         cfg,
+		mw:          mw,
 	}
 }
 
 func (rrm *AuthRoutesManager) RegisterRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
+		// Public routes
 		r.Post("/register", rrm.HandleRegister)
 		r.Post("/login", rrm.HandleLogin)
-		r.Post("/refresh", rrm.HandleRefreshAccessToken)
 		r.Post("/logout", rrm.HandleLogout)
+		r.Post("/refresh", rrm.HandleRefreshAccessToken)
 		r.Get("/me", rrm.HandleMe)
 	})
 }

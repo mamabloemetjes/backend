@@ -41,8 +41,9 @@ CREATE TABLE IF NOT EXISTS public.products (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 
     -- Constraint: Ensure pricing calculation is valid
+    -- Subtotal = Price - Discount + Tax
     CONSTRAINT check_price_calculation CHECK (
-        ABS(price - (subtotal + tax)) < 1
+        subtotal = (price - discount + tax)
     )
 ) TABLESPACE pg_default;
 
@@ -216,7 +217,7 @@ COMMENT ON COLUMN public.products.tax IS
     'Tax amount in cents';
 
 COMMENT ON COLUMN public.products.subtotal IS
-    'Subtotal in cents (price - discount + tax)';
+    'Final amount in cents after applying discount and adding tax (price - discount + tax)';
 
 COMMENT ON COLUMN public.products.sku IS
     'Stock Keeping Unit - unique identifier for inventory management';

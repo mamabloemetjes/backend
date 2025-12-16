@@ -10,14 +10,14 @@ import (
 func (ar *AuthRoutesManager) HandleMe(w http.ResponseWriter, r *http.Request) {
 	accessToken, err := lib.GetCookieValue(lib.AccessCookieName, r)
 	if err != nil {
-		ar.logger.Warn("Access token not found in cookies", gecho.Field("error", err))
+		ar.logger.Debug("Access token not found in cookies", gecho.Field("error", err))
 		gecho.Success(w, gecho.WithMessage("Invalid access token"), gecho.Send())
 		return
 	}
 
 	claims, err := lib.ParseToken(accessToken, true, ar.cfg.Auth.AccessTokenSecret)
 	if err != nil {
-		ar.logger.Warn("Failed to parse access token", gecho.Field("error", err))
+		ar.logger.Error("Failed to parse access token", gecho.Field("error", err))
 		gecho.Success(w, gecho.WithMessage("Invalid access token"), gecho.Send())
 		return
 	}

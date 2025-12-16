@@ -3,6 +3,7 @@ package lib
 import (
 	"fmt"
 	"mamabloemetjes_server/structs"
+	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -73,4 +74,22 @@ func ParseToken(tokenStr string, isAccessToken bool, secret string) (*structs.Au
 		}, nil
 	}
 	return nil, jwt.ErrInvalidKey
+}
+
+func ExtractClaims(r *http.Request, secret string) (*structs.AuthClaims, error) {
+	accessToken, err := GetCookieValue(AccessCookieName, r)
+	if err != nil {
+		return nil, err
+	}
+
+	claims, err := ParseToken(
+		accessToken,
+		true,
+		secret,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return claims, nil
 }

@@ -26,7 +26,7 @@ func App() chi.Router {
 	cfg := config.GetConfig()
 
 	// Initialize middleware
-	mw := middleware.NewMiddleware()
+	mw := middleware.NewMiddleware(cfg, mwLogger, db)
 
 	// Logging middleware
 	r.Use(gecho.Handlers.CreateLoggingMiddleware(mwLogger))
@@ -37,7 +37,7 @@ func App() chi.Router {
 	r.Use(mw.SetupCORS().Handler)
 
 	// Register all routes
-	NewRouterManager(standardLogger, db, cfg).RegisterRoutes(r)
+	NewRouterManager(standardLogger, db, cfg, mw).RegisterRoutes(r)
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		gecho.Success(w,

@@ -39,6 +39,7 @@ func GetConfig() *structs.Config {
 				MaxConns:     getEnvAsInt("DB_MAX_CONNS", 10),
 				MinConns:     getEnvAsInt("DB_MIN_CONNS", 2),
 				MaxLifetime:  getEnvAsTimeDuration("DB_MAX_LIFETIME", 30*time.Minute),
+				MaxIdleTime:  getEnvAsTimeDuration("DB_MAX_IDLE_TIME", 5*time.Minute),
 				ReadTimeout:  getEnvAsTimeDuration("DB_READ_TIMEOUT", 5*time.Second),
 				WriteTimeout: getEnvAsTimeDuration("DB_WRITE_TIMEOUT", 5*time.Second),
 			},

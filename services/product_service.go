@@ -395,3 +395,28 @@ func (ps *ProductService) applySorting(query *database.QueryBuilder[tables.Produ
 
 	return query
 }
+
+// Create new product
+
+func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Product) (*tables.Product, error) {
+	startTime := time.Now()
+
+	// Calculate subtotal
+	product.Subtotal = product.Price - product.Discount + product.Tax
+
+	// Insert the new product
+	_, err := database.Query[tables.Product](ps.db).Insert(ctx, product)
+	if err != nil {
+		ps.logger.Error("Failed to create product",
+			gecho.Field("error", err),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+		return nil, fmt.Errorf("failed to create product: %w", err)
+	}
+
+	ps.logger.Info("Product created successfully",
+		gecho.Field("id", product.ID),
+		gecho.Field("duration", time.Since(startTime)),
+	)
+	return product, nil
+}

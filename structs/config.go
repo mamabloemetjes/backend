@@ -36,6 +36,7 @@ type DatabaseConfig struct {
 	MaxConns     int
 	MinConns     int
 	MaxLifetime  time.Duration // in seconds
+	MaxIdleTime  time.Duration // in seconds
 	ReadTimeout  time.Duration // in seconds
 	WriteTimeout time.Duration // in seconds
 }
