@@ -261,25 +261,23 @@ func (as *AuthService) GetUserByID(userId uuid.UUID) (*tables.User, error) {
 		as.logger.Warn("Failed to get user from cache", gecho.Field("error", err), gecho.Field("user_id", userId))
 	} else if cachedUser != nil {
 		as.logger.Debug("User retrieved from cache", gecho.Field("user_id", userId))
-
-		go func() {
-			// Refresh cache asynchronously
-			if err := as.cacheService.SetUserInCache(cachedUser); err != nil {
-				as.logger.Warn("Failed to refresh user cache asynchronously", gecho.Field("error", err), gecho.Field("user_id", userId))
-			} else {
-				as.logger.Debug("User cache refreshed asynchronously", gecho.Field("user_id", userId))
-			}
-		}()
-
 		return cachedUser, nil
 	}
 
-	// Fetch user from database if not found in cache
+	// Cache miss - fetch user from database
 	user, err := database.Query[tables.User](as.db).Where("id", userId).First(context.Background())
 	if err != nil {
 		as.logger.Error("Failed to find user by ID", gecho.Field("error", err), gecho.Field("user_id", userId))
 		return nil, lib.MapPgError(err)
 	}
+
+	// Cache the user asynchronously
+	go func() {
+		if err := as.cacheService.SetUserInCache(user); err != nil {
+			as.logger.Warn("Failed to cache user after DB fetch", gecho.Field("error", err), gecho.Field("user_id", userId))
+		}
+	}()
+
 	return user, nil
 }
 
