@@ -2,18 +2,23 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"mamabloemetjes_server/config"
 	"time"
 
 	"github.com/MonkyMars/gecho"
-	"github.com/go-pg/pg/v10"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-// DB wraps the go-pg database connection with additional functionality
+// DB wraps the bun database connection with additional functionality
 type DB struct {
-	*pg.DB
+	*bun.DB
+	sqlDB  *sql.DB
+	logger *gecho.Logger
 }
 
 var instance *DB
@@ -24,40 +29,58 @@ func Connect() (*DB, error) {
 	cfg := config.GetConfig()
 	dbCfg := cfg.Database
 
-	opts := &pg.Options{
-		Addr:     fmt.Sprintf("%s:%d", dbCfg.Host, dbCfg.Port),
-		User:     dbCfg.User,
-		Password: dbCfg.Password,
-		Database: dbCfg.Name,
-	}
+	// Build DSN for pgdriver
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=require",
+		dbCfg.User,
+		dbCfg.Password,
+		dbCfg.Host,
+		dbCfg.Port,
+		dbCfg.Name,
+	)
 
-	// Apply pool settings from configuration
-	opts.PoolSize = dbCfg.MaxConns
-	opts.MinIdleConns = dbCfg.MinConns
-	opts.MaxConnAge = dbCfg.MaxLifetime
-	opts.ReadTimeout = dbCfg.ReadTimeout
-	opts.WriteTimeout = dbCfg.WriteTimeout
-	opts.IdleTimeout = dbCfg.MaxIdleTime
-	opts.IdleCheckFrequency = 1 * time.Minute // Check for idle connections every minute
-	opts.PoolTimeout = 30 * time.Second       // Wait up to 30s for a connection from the pool
+	// Create pgdriver connector with connection pool settings
+	connector := pgdriver.NewConnector(
+		pgdriver.WithDSN(dsn),
+		pgdriver.WithTimeout(30*time.Second),
+		pgdriver.WithDialTimeout(10*time.Second),
+		pgdriver.WithReadTimeout(dbCfg.ReadTimeout),
+		pgdriver.WithWriteTimeout(dbCfg.WriteTimeout),
+	)
 
-	// Create the database connection
-	db := pg.Connect(opts)
+	// Create SQL DB with connection pooling
+	sqlDB := sql.OpenDB(connector)
 
-	// Add connection hook to log and handle connection errors
-	db.AddQueryHook(&connectionHealthHook{logger: logger})
+	// Configure connection pool
+	sqlDB.SetMaxOpenConns(dbCfg.MaxConns)
+	sqlDB.SetMaxIdleConns(dbCfg.MinConns)
+	sqlDB.SetConnMaxLifetime(dbCfg.MaxLifetime)
+	sqlDB.SetConnMaxIdleTime(dbCfg.MaxIdleTime)
+
+	// Create Bun DB with PostgreSQL dialect
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+
+	// Add query hook for logging and monitoring
+	bunDB.AddQueryHook(&queryHook{logger: logger})
 
 	// Test the connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := db.Ping(ctx); err != nil {
+	if err := bunDB.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	logger.Info("Connected to database successfully")
+	logger.Info("Connected to database successfully",
+		gecho.Field("host", dbCfg.Host),
+		gecho.Field("database", dbCfg.Name),
+		gecho.Field("max_conns", dbCfg.MaxConns),
+	)
 
-	return &DB{db}, nil
+	return &DB{
+		DB:     bunDB,
+		sqlDB:  sqlDB,
+		logger: logger,
+	}, nil
 }
 
 // Initialize sets up the global database instance using centralized configuration
@@ -82,7 +105,10 @@ func GetInstance() *DB {
 
 // Close closes the database connection
 func (db *DB) Close() error {
-	return db.DB.Close()
+	if err := db.DB.Close(); err != nil {
+		return err
+	}
+	return db.sqlDB.Close()
 }
 
 // CloseInstance closes the global database instance
@@ -98,46 +124,43 @@ func (db *DB) Health() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	return db.Ping(ctx)
+	return db.PingContext(ctx)
 }
 
 // GetStats returns connection pool statistics for monitoring
-func (db *DB) GetStats() *pg.PoolStats {
-	return db.PoolStats()
+func (db *DB) GetStats() sql.DBStats {
+	return db.sqlDB.Stats()
 }
 
-// connectionHealthHook implements pg.QueryHook to monitor connection health
-type connectionHealthHook struct {
+// queryHook implements bun.QueryHook to monitor queries and handle errors
+type queryHook struct {
 	logger *gecho.Logger
 }
 
-func (h *connectionHealthHook) BeforeQuery(ctx context.Context, event *pg.QueryEvent) (context.Context, error) {
-	return ctx, nil
+func (h *queryHook) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
+	return ctx
 }
 
-func (h *connectionHealthHook) AfterQuery(ctx context.Context, event *pg.QueryEvent) error {
-	// Log slow queries (over 1 second)
-	if event.Result != nil && event.Result.RowsAffected() >= 0 {
-		duration := time.Since(event.StartTime)
-		if duration > 1*time.Second {
-			query, _ := event.UnformattedQuery()
-			h.logger.Warn("Slow database query detected",
-				gecho.Field("query", string(query)),
+func (h *queryHook) AfterQuery(ctx context.Context, event *bun.QueryEvent) {
+	duration := time.Since(event.StartTime)
+
+	// Log slow queries (over 400ms)
+	if duration > 400*time.Millisecond {
+		h.logger.Warn("Slow database query detected",
+			gecho.Field("query", event.Query),
+			gecho.Field("duration", duration),
+		)
+	}
+
+	// Log query errors with context
+	if event.Err != nil {
+		// Don't log "no rows" as an error (it's expected)
+		if event.Err != sql.ErrNoRows {
+			h.logger.Error("Database query error",
+				gecho.Field("error", event.Err),
+				gecho.Field("query", event.Query),
 				gecho.Field("duration", duration),
 			)
 		}
 	}
-
-	// Handle EOF errors specifically
-	if event.Err != nil {
-		if event.Err.Error() == "EOF" || event.Err.Error() == "unexpected EOF" {
-			query, _ := event.UnformattedQuery()
-			h.logger.Error("Database connection EOF error - connection may have been closed by server",
-				gecho.Field("error", event.Err),
-				gecho.Field("query", string(query)),
-			)
-		}
-	}
-
-	return nil
 }

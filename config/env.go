@@ -25,8 +25,8 @@ func getEnvAsInt(key string, defaultVal int) int {
 
 func getEnvAsTimeDuration(key string, defaultVal time.Duration) time.Duration {
 	if valueStr, exists := lookupEnv(key); exists {
-		if value, err := strconv.Atoi(valueStr); err == nil {
-			return time.Duration(value)
+		if value, err := time.ParseDuration(valueStr); err == nil {
+			return value
 		}
 	}
 	return defaultVal

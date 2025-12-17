@@ -18,6 +18,7 @@ func GetConfig() *structs.Config {
 				AppName:        getEnvAsString("APP_NAME", "Mamabloemetjes_no_env"),
 				Environment:    getEnvAsString("APP_ENV", "development"),
 				Port:           getEnvAsString("APP_PORT", ":8082"),
+				LogLevel:       getEnvAsString("APP_LOG_LEVEL", "info"),
 				ReadTimeout:    getEnvAsTimeDuration("SERVER_READ_TIME_OUT", 15*time.Second),
 				WriteTimeout:   getEnvAsTimeDuration("SERVER_WRITE_TIME_OUT", 15*time.Second),
 				IdleTimeout:    getEnvAsTimeDuration("SERVER_IDLE_TIME_OUT", 60*time.Second),
@@ -55,10 +56,7 @@ func GetConfig() *structs.Config {
 }
 
 func GetLogLevel() string {
-	if GetConfig().Server.Environment == "production" {
-		return "info"
-	}
-	return "debug"
+	return GetConfig().Server.LogLevel
 }
 
 func IsProduction() bool {

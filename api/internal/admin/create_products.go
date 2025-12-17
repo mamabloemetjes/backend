@@ -19,7 +19,7 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Normalize colors to lowercase
-	if body.Colors != nil && len(body.Colors) > 0 {
+	if len(body.Colors) > 0 {
 		for i, color := range body.Colors {
 			body.Colors[i] = structs.Color(strings.ToLower(string(color)))
 		}

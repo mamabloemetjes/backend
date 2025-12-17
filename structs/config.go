@@ -13,6 +13,7 @@ type ServerConfig struct {
 	AppName        string        // Mamabloemetjes
 	Environment    string        // development, production
 	Port           string        // :8082
+	LogLevel       string        // debug, info, warn, error
 	ReadTimeout    time.Duration // in seconds
 	WriteTimeout   time.Duration // in seconds
 	IdleTimeout    time.Duration // in seconds
