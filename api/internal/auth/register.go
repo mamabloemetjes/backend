@@ -13,7 +13,7 @@ func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Reque
 	body, err := lib.ExtractAndValidateBody[structs.RegisterRequest](r)
 	if err != nil {
 		ar.logger.Warn("Failed to extract request body", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("Invalid body"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("Please check your registration information and try again"), gecho.Send())
 		return
 	}
 
@@ -27,25 +27,25 @@ func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		if errors.Is(err, lib.ErrConflict) {
 			ar.logger.Warn("User already exists", gecho.Field("email", body.Email), gecho.Field("username", body.Username))
-			gecho.Conflict(w, gecho.WithMessage("User already exists"), gecho.Send())
+			gecho.Conflict(w, gecho.WithMessage("This email or username is already registered"), gecho.Send())
 			return
 		}
 		ar.logger.Error("Failed to create user", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("Failed to create user"), gecho.Send())
+		gecho.InternalServerError(w, gecho.WithMessage("Unable to create account. Please try again"), gecho.Send())
 		return
 	}
 
 	accessToken, err := ar.authService.GenerateAccessToken(user)
 	if err != nil {
 		ar.logger.Warn("Failed to generate access token", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("Failed to generate access token"), gecho.Send())
+		gecho.InternalServerError(w, gecho.WithMessage("Unable to complete registration. Please try again"), gecho.Send())
 		return
 	}
 
 	refreshToken, err := ar.authService.GenerateRefreshToken(user)
 	if err != nil {
 		ar.logger.Warn("Failed to generate refresh token", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("Failed to generate refresh token"), gecho.Send())
+		gecho.InternalServerError(w, gecho.WithMessage("Unable to complete registration. Please try again"), gecho.Send())
 		return
 	}
 

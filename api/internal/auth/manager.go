@@ -35,6 +35,9 @@ func NewAuthRoutesManager(cfg *structs.Config, logger *gecho.Logger, db *databas
 
 func (rrm *AuthRoutesManager) RegisterRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
+		// CSRF token endpoint (must be called before protected routes)
+		r.Get("/csrf", rrm.HandleCSRF)
+
 		// Public routes
 		r.Group(func(r chi.Router) {
 			r.Use(rrm.mw.CSRFMiddleware())

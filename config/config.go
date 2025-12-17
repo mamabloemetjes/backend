@@ -27,7 +27,7 @@ func GetConfig() *structs.Config {
 			Cors: &structs.CorsConfig{
 				AllowOrigins:     getEnvAsSlice("CORS_ALLOW_ORIGINS", []string{"localhost", "http://localhost:3000"}),
 				AllowMethods:     getEnvAsSlice("CORS_ALLOW_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
-				AllowHeaders:     getEnvAsSlice("CORS_ALLOW_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization"}),
+				AllowHeaders:     getEnvAsSlice("CORS_ALLOW_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-CSRF-Token"}),
 				AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", false),
 				ExposedHeaders:   getEnvAsSlice("CORS_EXPOSED_HEADERS", []string{"Content-Length", "Authorization"}),
 			},

@@ -13,13 +13,13 @@ import (
 func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	productId := chi.URLParam(r, "id")
 	if productId == "" {
-		gecho.BadRequest(w, gecho.WithMessage("Product ID is required"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("Please select a product to delete"), gecho.Send())
 		return
 	}
 	total, err := database.Query[tables.Product](ar.db).Where("id", productId).Delete(r.Context())
 	if err != nil {
 		ar.logger.Error("Failed to delete product", gecho.Field("error", err), gecho.Field("product_id", productId))
-		gecho.InternalServerError(w, gecho.WithMessage("Failed to delete product"), gecho.Send())
+		gecho.InternalServerError(w, gecho.WithMessage("Unable to delete product. Please try again"), gecho.Send())
 		return
 	}
 	if total == 0 {

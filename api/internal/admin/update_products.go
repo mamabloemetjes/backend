@@ -50,7 +50,7 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 	body, err := lib.ExtractAndValidateBody[UpdateProductsRequest](r)
 	if err != nil || len(body.Products) == 0 {
 		ar.logger.Debug("Failed to extract and validate body", err)
-		gecho.BadRequest(w, gecho.WithMessage("Invalid request body"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("Please check the product information and try again"), gecho.Send())
 		return
 	}
 
@@ -166,7 +166,7 @@ func (ar *AdminRoutesManager) UpdateProductsStock(w http.ResponseWriter, r *http
 	body, err := lib.ExtractAndValidateBody[UpdateProductsStockRequest](r)
 	if err != nil || len(body.Stocks) == 0 {
 		ar.logger.Debug("Failed to extract and validate body", err)
-		gecho.BadRequest(w, gecho.WithMessage("Invalid request body"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("Please check the stock information and try again"), gecho.Send())
 		return
 	}
 
