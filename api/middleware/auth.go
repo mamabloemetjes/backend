@@ -28,6 +28,27 @@ func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Check if token is revoked
+		isRevoked, err := mw.cacheService.IsTokenBlacklisted(claims.Jti)
+		if err != nil {
+			mw.logger.Error("Failed to check if token is revoked", gecho.Field("error", err))
+			gecho.InternalServerError(w, gecho.WithMessage("Internal server error"), gecho.Send())
+			return
+		}
+		if isRevoked {
+			mw.logger.Warn("Revoked token used for authentication", gecho.Field("token_id", claims.Jti))
+
+			// Revoke user cache
+			if err = mw.cacheService.DeleteUserFromCache(claims.Sub); err != nil {
+				mw.logger.Error("Failed to revoke user cache for revoked token", gecho.Field("error", err), gecho.Field("user_id", claims.Sub))
+			} else {
+				mw.logger.Debug("User cache revoked for revoked token", gecho.Field("user_id", claims.Sub))
+			}
+
+			gecho.Unauthorized(w, gecho.WithMessage("Access token has been revoked"), gecho.Send())
+			return
+		}
+
 		// Add user and claims to request context
 		ctx := context.WithValue(r.Context(), ClaimsContextKey, claims)
 

@@ -5,6 +5,7 @@ import (
 	"mamabloemetjes_server/api"
 	"mamabloemetjes_server/config"
 	"mamabloemetjes_server/database"
+	"mamabloemetjes_server/services"
 	"mamabloemetjes_server/structs"
 	"net/http"
 	"os"
@@ -41,6 +42,14 @@ func main() {
 	r := api.App()
 
 	logger.Info(fmt.Sprintf("Starting server (%s) on %s", cfg.Server.AppName, cfg.Server.Port))
+
+	// Ping cache to ensure it's reachable
+	cacheService := services.NewCacheService(logger, cfg)
+	if err := cacheService.Ping(); err != nil {
+		logger.Fatal("Cache ping failed", gecho.Field("error", err))
+	} else {
+		logger.Info("Cache ping successful")
+	}
 
 	// Start server
 	if err := http.ListenAndServe(cfg.Server.Port, r); err != nil {

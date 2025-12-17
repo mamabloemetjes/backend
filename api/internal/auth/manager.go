@@ -11,11 +11,12 @@ import (
 )
 
 type AuthRoutesManager struct {
-	logger      *gecho.Logger
-	db          *database.DB
-	authService *services.AuthService
-	cfg         *structs.Config
-	mw          *middleware.Middleware
+	logger       *gecho.Logger
+	db           *database.DB
+	authService  *services.AuthService
+	cacheService *services.CacheService
+	cfg          *structs.Config
+	mw           *middleware.Middleware
 }
 
 func NewAuthRoutesManager(cfg *structs.Config, logger *gecho.Logger, db *database.DB, mw *middleware.Middleware) *AuthRoutesManager {
@@ -23,18 +24,25 @@ func NewAuthRoutesManager(cfg *structs.Config, logger *gecho.Logger, db *databas
 		logger:      logger,
 		db:          db,
 		authService: services.NewAuthService(cfg, logger, db),
-		cfg:         cfg,
-		mw:          mw,
+		cacheService: services.NewCacheService(
+			logger,
+			cfg,
+		),
+		cfg: cfg,
+		mw:  mw,
 	}
 }
 
 func (rrm *AuthRoutesManager) RegisterRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
 		// Public routes
-		r.Post("/register", rrm.HandleRegister)
-		r.Post("/login", rrm.HandleLogin)
-		r.Post("/logout", rrm.HandleLogout)
-		r.Post("/refresh", rrm.HandleRefreshAccessToken)
+		r.Group(func(r chi.Router) {
+			r.Use(rrm.mw.CSRFMiddleware())
+			r.Post("/register", rrm.HandleRegister)
+			r.Post("/login", rrm.HandleLogin)
+			r.Post("/logout", rrm.HandleLogout)
+			r.Post("/refresh", rrm.HandleRefreshAccessToken)
+		})
 		r.Get("/me", rrm.HandleMe)
 	})
 }

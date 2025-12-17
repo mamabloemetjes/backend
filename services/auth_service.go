@@ -26,16 +26,18 @@ var defaultParams = &structs.ArgonParams{
 }
 
 type AuthService struct {
-	logger *gecho.Logger
-	cfg    *structs.Config
-	db     *database.DB
+	logger       *gecho.Logger
+	cfg          *structs.Config
+	db           *database.DB
+	cacheService *CacheService
 }
 
 func NewAuthService(cfg *structs.Config, logger *gecho.Logger, db *database.DB) *AuthService {
 	return &AuthService{
-		logger: logger,
-		cfg:    cfg,
-		db:     db,
+		logger:       logger,
+		cfg:          cfg,
+		db:           db,
+		cacheService: NewCacheService(logger, cfg),
 	}
 }
 
@@ -67,6 +69,15 @@ func (as *AuthService) Login(authRequest *structs.AuthRequest) (*tables.User, er
 	elapsedTime := time.Since(startTime)
 	as.logger.Debug("User logged in successfully", gecho.Field("user_id", user.Id), gecho.Field("elapsed_time_ms", elapsedTime.Milliseconds()))
 
+	// Remove password hash before returning user
+	user.PasswordHash = ""
+
+	// Set user in cache
+	cacheErr := as.cacheService.SetUserInCache(user)
+	if cacheErr != nil {
+		as.logger.Warn("Failed to set user in cache after login", gecho.Field("error", cacheErr), gecho.Field("user_id", user.Id))
+	}
+
 	return user, nil
 }
 
@@ -90,6 +101,15 @@ func (as *AuthService) Register(registerRequest *structs.RegisterRequest) (*tabl
 
 	elapsedTime := time.Since(startTime)
 	as.logger.Debug("User registered successfully", gecho.Field("user_id", user.Id), gecho.Field("elapsed_time_ms", elapsedTime.Milliseconds()))
+
+	// Remove password hash before returning user
+	user.PasswordHash = ""
+
+	// Set user in cache
+	cacheErr := as.cacheService.SetUserInCache(user)
+	if cacheErr != nil {
+		as.logger.Warn("Failed to set user in cache after registration", gecho.Field("error", cacheErr), gecho.Field("user_id", user.Id))
+	}
 
 	return user, nil
 }
@@ -235,8 +255,26 @@ func (as *AuthService) RefreshAccessToken(refreshToken string) (*tables.AuthResp
 }
 
 func (as *AuthService) GetUserByID(userId uuid.UUID) (*tables.User, error) {
-	// TODO: implement caching
-	// Fetch user from database
+	// Try to get user from cache first
+	cachedUser, err := as.cacheService.GetUserFromCache(userId)
+	if err != nil {
+		as.logger.Warn("Failed to get user from cache", gecho.Field("error", err), gecho.Field("user_id", userId))
+	} else if cachedUser != nil {
+		as.logger.Debug("User retrieved from cache", gecho.Field("user_id", userId))
+
+		go func() {
+			// Refresh cache asynchronously
+			if err := as.cacheService.SetUserInCache(cachedUser); err != nil {
+				as.logger.Warn("Failed to refresh user cache asynchronously", gecho.Field("error", err), gecho.Field("user_id", userId))
+			} else {
+				as.logger.Debug("User cache refreshed asynchronously", gecho.Field("user_id", userId))
+			}
+		}()
+
+		return cachedUser, nil
+	}
+
+	// Fetch user from database if not found in cache
 	user, err := database.Query[tables.User](as.db).Where("id", userId).First(context.Background())
 	if err != nil {
 		as.logger.Error("Failed to find user by ID", gecho.Field("error", err), gecho.Field("user_id", userId))

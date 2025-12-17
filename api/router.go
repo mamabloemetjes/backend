@@ -28,12 +28,19 @@ func App() chi.Router {
 	// Initialize middleware
 	mw := middleware.NewMiddleware(cfg, mwLogger, db)
 
-	// Logging middleware
-	r.Use(gecho.Handlers.CreateLoggingMiddleware(mwLogger))
+	// Core infra
 	r.Use(chiware.RequestID)
 	r.Use(chiware.RealIP)
 	r.Use(chiware.Recoverer)
 
+	// Limits & security
+	r.Use(mw.BodyLimit(10 * 1024 * 1024))
+	r.Use(mw.SecurityHeaders())
+
+	// Observability
+	r.Use(gecho.Handlers.CreateLoggingMiddleware(mwLogger))
+
+	// CORS (must be before auth / csrf)
 	r.Use(mw.SetupCORS().Handler)
 
 	// Register all routes

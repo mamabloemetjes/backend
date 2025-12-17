@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/MonkyMars/gecho"
+	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 )
 
@@ -128,6 +129,19 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 		if err != nil {
 			totalErrors[productId] = err
 			ar.logger.Error("Failed to update product", gecho.Field("error", err), gecho.Field("product_id", productId))
+		} else {
+			// Invalidate product caches asynchronously
+			productUUID, parseErr := uuid.Parse(productId)
+			if parseErr == nil {
+				go func(id uuid.UUID) {
+					if cacheErr := ar.cacheService.InvalidateProductCaches(id); cacheErr != nil {
+						ar.logger.Warn("Failed to invalidate product caches after update",
+							gecho.Field("error", cacheErr),
+							gecho.Field("product_id", id),
+						)
+					}
+				}(productUUID)
+			}
 		}
 	}
 
@@ -165,6 +179,19 @@ func (ar *AdminRoutesManager) UpdateProductsStock(w http.ResponseWriter, r *http
 		if err != nil || rowsAffected == 0 {
 			totalErrors[productId] = err
 			ar.logger.Error("Failed to update product stock", gecho.Field("error", err), gecho.Field("product_id", productId))
+		} else {
+			// Invalidate product caches asynchronously
+			productUUID, parseErr := uuid.Parse(productId)
+			if parseErr == nil {
+				go func(id uuid.UUID) {
+					if cacheErr := ar.cacheService.InvalidateProductCaches(id); cacheErr != nil {
+						ar.logger.Warn("Failed to invalidate product caches after stock update",
+							gecho.Field("error", cacheErr),
+							gecho.Field("product_id", id),
+						)
+					}
+				}(productUUID)
+			}
 		}
 	}
 

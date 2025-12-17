@@ -27,7 +27,7 @@ func NewRouterManager(
 	mw *middleware.Middleware,
 ) *routerManager {
 	return &routerManager{
-		productRoutes: products.NewProductRoutesManager(logger, db),
+		productRoutes: products.NewProductRoutesManager(logger, db, cfg),
 		healthRoutes:  health.NewHealthRoutesManager(logger, db),
 		authRoutes:    auth.NewAuthRoutesManager(cfg, logger, db, mw),
 		adminRoutes:   admin.NewAuthRoutesManager(cfg, logger, db, mw),

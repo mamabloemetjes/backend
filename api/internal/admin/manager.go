@@ -15,17 +15,20 @@ type AdminRoutesManager struct {
 	db             *database.DB
 	authService    *services.AuthService
 	productService *services.ProductService
+	cacheService   *services.CacheService
 	cfg            *structs.Config
 	mw             *middleware.Middleware
 }
 
 func NewAuthRoutesManager(cfg *structs.Config, logger *gecho.Logger, db *database.DB, mw *middleware.Middleware) *AdminRoutesManager {
+	cacheService := services.NewCacheService(logger, cfg)
 	return &AdminRoutesManager{
 		logger:         logger,
 		db:             db,
 		cfg:            cfg,
 		mw:             mw,
-		productService: services.NewProductService(logger, db),
+		cacheService:   cacheService,
+		productService: services.NewProductService(logger, db, cacheService),
 		authService:    services.NewAuthService(cfg, logger, db),
 	}
 }
@@ -34,9 +37,14 @@ func (ar *AdminRoutesManager) RegisterRoutes(r chi.Router) {
 	r.Route("/admin", func(r chi.Router) {
 		r.Use(ar.mw.AdminAuthMiddleware)
 		r.Get("/products", ar.ListAllProducts)
-		r.Post("/products", ar.CreateProduct)
-		r.Put("/products/{id}", ar.UpdateProducts)
-		r.Put("/products/{id}/stock", ar.UpdateProductsStock)
-		r.Delete("/products/{id}", ar.DeleteProduct)
+
+		// Protected routes behind CSRF
+		r.Group(func(r chi.Router) {
+			r.Use(ar.mw.CSRFMiddleware())
+			r.Post("/products", ar.CreateProduct)
+			r.Put("/products/{id}", ar.UpdateProducts)
+			r.Put("/products/{id}/stock", ar.UpdateProductsStock)
+			r.Delete("/products/{id}", ar.DeleteProduct)
+		})
 	})
 }

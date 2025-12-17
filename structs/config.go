@@ -7,6 +7,7 @@ type Config struct {
 	Cors     *CorsConfig
 	Database *DatabaseConfig
 	Auth     *AuthConfig
+	Cache    *CacheConfig
 }
 
 type ServerConfig struct {
@@ -47,4 +48,26 @@ type AuthConfig struct {
 	AccessTokenExpiry  time.Duration
 	RefreshTokenSecret string
 	RefreshTokenExpiry time.Duration
+	CacheUserTTL       time.Duration
+	BlacklistCacheTTL  time.Duration
+}
+
+type CacheConfig struct {
+	Address         string
+	Username        string
+	Password        string
+	DB              int
+	PoolSize        int
+	MinIdleConns    int
+	MaxIdleConns    int
+	PoolTimeout     time.Duration
+	IdleTimeout     time.Duration
+	DialTimeout     time.Duration
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	MaxRetries      int
+	MinRetryBackoff time.Duration
+	MaxRetryBackoff time.Duration
+	ProductListTTL  time.Duration
+	ProductCountTTL time.Duration
 }

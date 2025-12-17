@@ -9,13 +9,15 @@ import (
 )
 
 type Middleware struct {
-	logger      *gecho.Logger
-	authService *services.AuthService
+	logger       *gecho.Logger
+	authService  *services.AuthService
+	cacheService *services.CacheService
 }
 
 func NewMiddleware(cfg *structs.Config, logger *gecho.Logger, db *database.DB) *Middleware {
 	return &Middleware{
-		logger:      logger,
-		authService: services.NewAuthService(cfg, logger, db),
+		logger:       logger,
+		authService:  services.NewAuthService(cfg, logger, db),
+		cacheService: services.NewCacheService(logger, cfg),
 	}
 }

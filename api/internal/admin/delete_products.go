@@ -7,6 +7,7 @@ import (
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Request) {
@@ -24,6 +25,19 @@ func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Reque
 	if total == 0 {
 		gecho.NotFound(w, gecho.WithMessage("Product not found"), gecho.Send())
 		return
+	}
+
+	// Invalidate product caches asynchronously
+	productUUID, parseErr := uuid.Parse(productId)
+	if parseErr == nil {
+		go func(id uuid.UUID) {
+			if cacheErr := ar.cacheService.InvalidateProductCaches(id); cacheErr != nil {
+				ar.logger.Warn("Failed to invalidate product caches after deletion",
+					gecho.Field("error", cacheErr),
+					gecho.Field("product_id", id),
+				)
+			}
+		}(productUUID)
 	}
 
 	gecho.Success(w,

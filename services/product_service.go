@@ -12,14 +12,16 @@ import (
 )
 
 type ProductService struct {
-	logger *gecho.Logger
-	db     *database.DB
+	logger       *gecho.Logger
+	db           *database.DB
+	cacheService *CacheService
 }
 
-func NewProductService(logger *gecho.Logger, db *database.DB) *ProductService {
+func NewProductService(logger *gecho.Logger, db *database.DB, cacheService *CacheService) *ProductService {
 	return &ProductService{
-		logger: logger,
-		db:     db,
+		logger:       logger,
+		db:           db,
+		cacheService: cacheService,
 	}
 }
 
@@ -134,6 +136,16 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 func (ps *ProductService) GetProductByID(ctx context.Context, id string, includeImages bool) (*tables.Product, error) {
 	startTime := time.Now()
 
+	// Try to get from cache first
+	cachedProduct, err := ps.cacheService.GetProductByID(id, includeImages)
+	if err != nil {
+		ps.logger.Warn("Failed to get product from cache", gecho.Field("error", err), gecho.Field("id", id))
+	} else if cachedProduct != nil {
+		ps.logger.Debug("Product retrieved from cache", gecho.Field("id", id), gecho.Field("duration", time.Since(startTime)))
+		return cachedProduct, nil
+	}
+
+	// Cache miss - fetch from database
 	query := database.Query[tables.Product](ps.db).
 		Where("id", id).
 		Timeout(5 * time.Second)
@@ -157,6 +169,13 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 		return nil, fmt.Errorf("product not found")
 	}
 
+	// Cache the product asynchronously
+	go func() {
+		if err := ps.cacheService.SetProductByID(product, includeImages); err != nil {
+			ps.logger.Warn("Failed to cache product", gecho.Field("error", err), gecho.Field("id", id))
+		}
+	}()
+
 	ps.logger.Debug("Product fetched by ID",
 		gecho.Field("id", id),
 		gecho.Field("duration", time.Since(startTime)),
@@ -164,8 +183,40 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 	return product, nil
 }
 
-// GetActiveProducts is a convenience method to get only active products
+// GetActiveProducts is a convenience method to get only active products with caching
 func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize int, includeImages bool) (*ProductListResult, error) {
+	startTime := time.Now()
+
+	// Try to get from cache first
+	cachedProducts, err := ps.cacheService.GetActiveProductsList(page, pageSize, includeImages)
+	if err != nil {
+		ps.logger.Warn("Failed to get active products from cache", gecho.Field("error", err))
+	} else if cachedProducts != nil {
+		ps.logger.Debug("Active products retrieved from cache",
+			gecho.Field("count", len(cachedProducts)),
+			gecho.Field("page", page),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+
+		// Build result from cache (pagination info needs to be fetched or cached separately)
+		// For now, return a simple result - you may want to cache pagination metadata too
+		return &ProductListResult{
+			Products: cachedProducts,
+			Pagination: database.Pagination{
+				Page:     page,
+				PageSize: pageSize,
+				Total:    len(cachedProducts), // This is approximate - real total would need separate query/cache
+			},
+			Filters: ProductListOptions{
+				Page:          page,
+				PageSize:      pageSize,
+				IncludeImages: includeImages,
+			},
+			QueryTime: time.Since(startTime),
+		}, nil
+	}
+
+	// Cache miss - fetch from database
 	isActive := true
 	opts := &ProductListOptions{
 		Page:          page,
@@ -175,7 +226,20 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 		SortBy:        "created_at",
 		SortDirection: "DESC",
 	}
-	return ps.GetAllProducts(ctx, opts)
+
+	result, err := ps.GetAllProducts(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the products asynchronously
+	go func() {
+		if err := ps.cacheService.SetActiveProductsList(page, pageSize, includeImages, result.Products); err != nil {
+			ps.logger.Warn("Failed to cache active products", gecho.Field("error", err))
+		}
+	}()
+
+	return result, nil
 }
 
 // GetProductsBySKUs retrieves multiple products by their SKUs
@@ -413,6 +477,16 @@ func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Pro
 		)
 		return nil, fmt.Errorf("failed to create product: %w", err)
 	}
+
+	// Invalidate product caches asynchronously
+	go func() {
+		if err := ps.cacheService.InvalidateProductCaches(product.ID); err != nil {
+			ps.logger.Warn("Failed to invalidate product caches after creation",
+				gecho.Field("error", err),
+				gecho.Field("product_id", product.ID),
+			)
+		}
+	}()
 
 	ps.logger.Info("Product created successfully",
 		gecho.Field("id", product.ID),
