@@ -23,8 +23,9 @@ func (ar *AuthRoutesManager) HandleRefreshAccessToken(w http.ResponseWriter, r *
 		return
 	}
 
-	// Set new access token cookie
+	// Set new tokens cookie
 	lib.SetCookie(lib.AccessCookieName, authResponse.AccessToken, ar.authService.GetAccessTokenExpiration(), w)
+	lib.SetCookie(lib.RefreshCookieName, authResponse.RefreshToken, ar.authService.GetRefreshTokenExpiration(), w)
 
 	gecho.Success(w,
 		gecho.WithMessage("Access token refreshed successfully"),
