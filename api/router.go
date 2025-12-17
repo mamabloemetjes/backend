@@ -36,6 +36,7 @@ func App() chi.Router {
 	// Limits & security
 	r.Use(mw.BodyLimit(10 * 1024 * 1024))
 	r.Use(mw.SecurityHeaders())
+	r.Use(mw.RateLimitMiddleware())
 
 	// Observability
 	r.Use(gecho.Handlers.CreateLoggingMiddleware(mwLogger))

@@ -3,11 +3,12 @@ package structs
 import "time"
 
 type Config struct {
-	Server   *ServerConfig
-	Cors     *CorsConfig
-	Database *DatabaseConfig
-	Auth     *AuthConfig
-	Cache    *CacheConfig
+	Server    *ServerConfig
+	Cors      *CorsConfig
+	Database  *DatabaseConfig
+	Auth      *AuthConfig
+	Cache     *CacheConfig
+	RateLimit *RateLimitConfig
 }
 
 type ServerConfig struct {
@@ -70,4 +71,25 @@ type CacheConfig struct {
 	MaxRetryBackoff time.Duration
 	ProductListTTL  time.Duration
 	ProductCountTTL time.Duration
+}
+
+type RateLimitConfig struct {
+	// General API endpoints
+	GeneralLimit  int
+	GeneralWindow time.Duration
+
+	// Auth endpoints (login, register) - stricter limits
+	AuthLimit  int
+	AuthWindow time.Duration
+
+	// Expensive endpoints (search, list) - moderate limits
+	ExpensiveLimit  int
+	ExpensiveWindow time.Duration
+
+	// Admin endpoints - moderate limits
+	AdminLimit  int
+	AdminWindow time.Duration
+
+	// Enable/disable rate limiting
+	Enabled bool
 }

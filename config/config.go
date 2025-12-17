@@ -71,6 +71,17 @@ func GetConfig() *structs.Config {
 				ProductListTTL:  getEnvAsTimeDuration("CACHE_PRODUCT_LIST_TTL", 5*time.Minute),
 				ProductCountTTL: getEnvAsTimeDuration("CACHE_PRODUCT_COUNT_TTL", 10*time.Minute),
 			},
+			RateLimit: &structs.RateLimitConfig{
+				Enabled:         getEnvAsBool("RATE_LIMIT_ENABLED", true),
+				GeneralLimit:    getEnvAsInt("RATE_LIMIT_GENERAL_LIMIT", 100),
+				GeneralWindow:   getEnvAsTimeDuration("RATE_LIMIT_GENERAL_WINDOW", 1*time.Minute),
+				AuthLimit:       getEnvAsInt("RATE_LIMIT_AUTH_LIMIT", 5),
+				AuthWindow:      getEnvAsTimeDuration("RATE_LIMIT_AUTH_WINDOW", 15*time.Minute),
+				ExpensiveLimit:  getEnvAsInt("RATE_LIMIT_EXPENSIVE_LIMIT", 30),
+				ExpensiveWindow: getEnvAsTimeDuration("RATE_LIMIT_EXPENSIVE_WINDOW", 1*time.Minute),
+				AdminLimit:      getEnvAsInt("RATE_LIMIT_ADMIN_LIMIT", 50),
+				AdminWindow:     getEnvAsTimeDuration("RATE_LIMIT_ADMIN_WINDOW", 1*time.Minute),
+			},
 		}
 	})
 	return configInstance

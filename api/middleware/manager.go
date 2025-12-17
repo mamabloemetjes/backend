@@ -12,6 +12,7 @@ type Middleware struct {
 	logger       *gecho.Logger
 	authService  *services.AuthService
 	cacheService *services.CacheService
+	cfg          *structs.Config
 }
 
 func NewMiddleware(cfg *structs.Config, logger *gecho.Logger, db *database.DB) *Middleware {
@@ -19,5 +20,6 @@ func NewMiddleware(cfg *structs.Config, logger *gecho.Logger, db *database.DB) *
 		logger:       logger,
 		authService:  services.NewAuthService(cfg, logger, db),
 		cacheService: services.NewCacheService(logger, cfg),
+		cfg:          cfg,
 	}
 }
