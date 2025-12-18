@@ -20,7 +20,7 @@ func (ar *AuthRoutesManager) HandleMe(w http.ResponseWriter, r *http.Request) {
 		authResponse, err := ar.authService.RefreshAccessToken(refreshToken)
 		if err != nil {
 			ar.logger.Warn("Failed to refresh access token", gecho.Field("error", err))
-			gecho.Success(w, gecho.WithMessage("No access token"), gecho.Send())
+			gecho.Unauthorized(w, gecho.WithMessage("Session expired"), gecho.Send())
 			return
 		}
 
@@ -40,7 +40,7 @@ func (ar *AuthRoutesManager) HandleMe(w http.ResponseWriter, r *http.Request) {
 	claims, err := lib.ParseToken(accessToken, true, ar.cfg.Auth.AccessTokenSecret)
 	if err != nil {
 		ar.logger.Error("Failed to parse access token", gecho.Field("error", err))
-		gecho.Success(w, gecho.WithMessage("Invalid access token"), gecho.Send())
+		gecho.Unauthorized(w, gecho.WithMessage("Invalid access token"), gecho.Send())
 		return
 	}
 

@@ -44,7 +44,6 @@ func (rrm *AuthRoutesManager) RegisterRoutes(r chi.Router) {
 			r.Post("/register", rrm.HandleRegister)
 			r.Post("/login", rrm.HandleLogin)
 			r.Post("/logout", rrm.HandleLogout)
-			r.Post("/refresh", rrm.HandleRefreshAccessToken)
 		})
 		r.Get("/me", rrm.HandleMe)
 	})
