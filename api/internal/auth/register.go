@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"errors"
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs"
 	"net/http"
@@ -25,13 +24,17 @@ func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Reque
 
 	user, err := ar.authService.Register(body)
 	if err != nil {
-		if errors.Is(err, lib.ErrConflict) {
-			ar.logger.Warn("User already exists", gecho.Field("email", body.Email), gecho.Field("username", body.Username))
-			gecho.Conflict(w, gecho.WithMessage("This email or username is already registered"), gecho.Send())
+		// Get user-friendly message from error
+		userMessage := lib.GetUserMessage(err)
+
+		// Unique violations return 409 Conflict (already logged as warn in service)
+		if lib.IsUniqueViolation(err) {
+			gecho.Conflict(w, gecho.WithMessage(userMessage), gecho.Send())
 			return
 		}
-		ar.logger.Error("Failed to create user", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("Unable to create account. Please try again"), gecho.Send())
+
+		// Other database errors return 500 (already logged as error in service)
+		gecho.InternalServerError(w, gecho.WithMessage(userMessage), gecho.Send())
 		return
 	}
 

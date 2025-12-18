@@ -4,14 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/uptrace/bun"
 )
 
 // All executes the query and returns all matching records with automatic retry
 func (q *QueryBuilder[T]) All(ctx context.Context) ([]T, error) {
-	start := time.Now()
 	var data []T
 
 	// Apply timeout if specified
@@ -37,7 +35,8 @@ func (q *QueryBuilder[T]) All(ctx context.Context) ([]T, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute select query: %w (took %v)", err, time.Since(start))
+		// Don't wrap the error - return it directly to preserve pgconn.PgError type
+		return nil, err
 	}
 
 	return data, nil
@@ -45,7 +44,6 @@ func (q *QueryBuilder[T]) All(ctx context.Context) ([]T, error) {
 
 // First executes the query and returns the first matching record with automatic retry
 func (q *QueryBuilder[T]) First(ctx context.Context) (*T, error) {
-	start := time.Now()
 	var data T
 
 	// Apply timeout if specified
@@ -65,7 +63,8 @@ func (q *QueryBuilder[T]) First(ctx context.Context) (*T, error) {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to execute first query: %w (took %v)", err, time.Since(start))
+		// Don't wrap the error - return it directly to preserve pgconn.PgError type
+		return nil, err
 	}
 
 	return &data, nil
@@ -73,7 +72,6 @@ func (q *QueryBuilder[T]) First(ctx context.Context) (*T, error) {
 
 // Count executes the query and returns the count of matching records with automatic retry
 func (q *QueryBuilder[T]) Count(ctx context.Context) (int, error) {
-	start := time.Now()
 	var count int
 
 	// Apply timeout if specified
@@ -91,7 +89,8 @@ func (q *QueryBuilder[T]) Count(ctx context.Context) (int, error) {
 	})
 
 	if err != nil {
-		return 0, fmt.Errorf("failed to execute count query: %w (took %v)", err, time.Since(start))
+		// Don't wrap the error - return it directly to preserve pgconn.PgError type
+		return 0, err
 	}
 
 	return count, nil
@@ -108,8 +107,6 @@ func (q *QueryBuilder[T]) Exists(ctx context.Context) (bool, error) {
 
 // Insert inserts a new record and returns it with automatic retry
 func (q *QueryBuilder[T]) Insert(ctx context.Context, data *T) (*T, error) {
-	start := time.Now()
-
 	// Apply timeout if specified
 	if q.timeout > 0 {
 		var cancel context.CancelFunc
@@ -129,7 +126,8 @@ func (q *QueryBuilder[T]) Insert(ctx context.Context, data *T) (*T, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute insert query: %w (took %v)", err, time.Since(start))
+		// Don't wrap the error - return it directly to preserve pgconn.PgError type
+		return nil, err
 	}
 
 	return data, nil
@@ -137,8 +135,6 @@ func (q *QueryBuilder[T]) Insert(ctx context.Context, data *T) (*T, error) {
 
 // InsertMany inserts multiple records with automatic retry
 func (q *QueryBuilder[T]) InsertMany(ctx context.Context, data []T) ([]T, error) {
-	start := time.Now()
-
 	if len(data) == 0 {
 		return data, nil
 	}
@@ -162,7 +158,8 @@ func (q *QueryBuilder[T]) InsertMany(ctx context.Context, data []T) ([]T, error)
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute bulk insert query: %w (took %v)", err, time.Since(start))
+		// Don't wrap the error - return it directly to preserve pgconn.PgError type
+		return nil, err
 	}
 
 	return data, nil
@@ -170,7 +167,6 @@ func (q *QueryBuilder[T]) InsertMany(ctx context.Context, data []T) ([]T, error)
 
 // Update updates records matching the query with automatic retry
 func (q *QueryBuilder[T]) Update(ctx context.Context, data any) (int, error) {
-	start := time.Now()
 	var rowsAffected int64
 
 	// Apply timeout if specified
@@ -214,7 +210,8 @@ func (q *QueryBuilder[T]) Update(ctx context.Context, data any) (int, error) {
 	})
 
 	if err != nil {
-		return 0, fmt.Errorf("failed to execute update query: %w (took %v)", err, time.Since(start))
+		// Don't wrap the error - return it directly to preserve pgconn.PgError type
+		return 0, err
 	}
 
 	return int(rowsAffected), nil
@@ -222,7 +219,6 @@ func (q *QueryBuilder[T]) Update(ctx context.Context, data any) (int, error) {
 
 // UpdateReturning updates records and returns them with automatic retry
 func (q *QueryBuilder[T]) UpdateReturning(ctx context.Context, data any) ([]T, error) {
-	start := time.Now()
 	var results []T
 
 	// Apply timeout if specified
@@ -264,7 +260,8 @@ func (q *QueryBuilder[T]) UpdateReturning(ctx context.Context, data any) ([]T, e
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute update query: %w (took %v)", err, time.Since(start))
+		// Don't wrap the error - return it directly to preserve pgconn.PgError type
+		return nil, err
 	}
 
 	return results, nil
@@ -272,7 +269,6 @@ func (q *QueryBuilder[T]) UpdateReturning(ctx context.Context, data any) ([]T, e
 
 // Delete deletes records matching the query with automatic retry
 func (q *QueryBuilder[T]) Delete(ctx context.Context) (int, error) {
-	start := time.Now()
 	var rowsAffected int64
 
 	// Apply timeout if specified
@@ -302,7 +298,8 @@ func (q *QueryBuilder[T]) Delete(ctx context.Context) (int, error) {
 	})
 
 	if err != nil {
-		return 0, fmt.Errorf("failed to execute delete query: %w (took %v)", err, time.Since(start))
+		// Don't wrap the error - return it directly to preserve pgconn.PgError type
+		return 0, err
 	}
 
 	return int(rowsAffected), nil
@@ -310,7 +307,6 @@ func (q *QueryBuilder[T]) Delete(ctx context.Context) (int, error) {
 
 // DeleteReturning deletes records and returns them with automatic retry
 func (q *QueryBuilder[T]) DeleteReturning(ctx context.Context) ([]T, error) {
-	start := time.Now()
 	var results []T
 
 	// Apply timeout if specified
@@ -340,7 +336,8 @@ func (q *QueryBuilder[T]) DeleteReturning(ctx context.Context) ([]T, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute delete query: %w (took %v)", err, time.Since(start))
+		// Don't wrap the error - return it directly to preserve pgconn.PgError type
+		return nil, err
 	}
 
 	return results, nil

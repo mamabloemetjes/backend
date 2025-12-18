@@ -45,24 +45,47 @@ func (as *AuthService) Login(authRequest *structs.AuthRequest) (*tables.User, er
 	startTime := time.Now()
 	user, err := database.Query[tables.User](as.db).Where("email", authRequest.Email).First(context.Background())
 	if err != nil {
-		as.logger.Error("Failed to find user by email", gecho.Field("error", err), gecho.Field("identifier", authRequest.Email))
-		return nil, lib.MapPgError(err)
+		// Map database error to user-friendly message
+		mappedErr := lib.MapPgError(err)
+
+		// Use debug logging for database query errors (could be legitimate "user not found")
+		as.logger.Debug("Database query during login",
+			gecho.Field("identifier", authRequest.Email),
+			gecho.Field("error_detail", lib.GetDetailForLogging(mappedErr)),
+		)
+
+		// Only log as error if it's not a "not found" error
+		if !lib.IsNotFound(mappedErr) {
+			as.logger.Error("Unexpected database error during login",
+				gecho.Field("error", mappedErr),
+				gecho.Field("original_error", err),
+			)
+		}
+
+		// Always return invalid credentials (don't leak user existence)
+		return nil, lib.ErrInvalidCredentials
 	}
 
 	// Check if user was found (First() can return nil, nil for no results)
 	if user == nil {
-		as.logger.Warn("User not found", gecho.Field("identifier", authRequest.Email))
+		as.logger.Debug("User not found during login attempt", gecho.Field("identifier", authRequest.Email))
 		return nil, lib.ErrInvalidCredentials
 	}
 
 	// Verify password
 	valid, err := as.VerifyPassword(authRequest.Password, user.PasswordHash)
 	if err != nil {
-		as.logger.Error("Failed to verify password", gecho.Field("error", err))
+		as.logger.Error("Failed to verify password hash",
+			gecho.Field("error", err),
+			gecho.Field("user_id", user.Id),
+		)
 		return nil, err
 	}
 	if !valid {
-		as.logger.Warn("Invalid password attempt", gecho.Field("identifier", authRequest.Email))
+		as.logger.Debug("Invalid password attempt",
+			gecho.Field("identifier", authRequest.Email),
+			gecho.Field("user_id", user.Id),
+		)
 		return nil, lib.ErrInvalidCredentials
 	}
 
@@ -94,9 +117,25 @@ func (as *AuthService) Register(registerRequest *structs.RegisterRequest) (*tabl
 		PasswordHash: passwordHash,
 	}
 	user, err = database.Query[tables.User](as.db).Insert(context.Background(), user)
-	// Check if it a conflict error (e.g., duplicate email)
 	if err != nil {
-		return nil, lib.MapPgError(err)
+		// Map the error to a user-friendly message
+		mappedErr := lib.MapPgError(err)
+
+		// Log unique violations as warnings (user error)
+		if lib.IsUniqueViolation(mappedErr) {
+			as.logger.Warn("Registration failed - duplicate user",
+				gecho.Field("username", registerRequest.Username),
+				gecho.Field("email", registerRequest.Email),
+			)
+		} else {
+			// Log other database errors as errors
+			as.logger.Error("Database error during registration",
+				gecho.Field("error", mappedErr),
+				gecho.Field("username", registerRequest.Username),
+			)
+		}
+
+		return nil, mappedErr
 	}
 
 	elapsedTime := time.Since(startTime)
