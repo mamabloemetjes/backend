@@ -226,6 +226,16 @@ func (as *AuthService) RefreshAccessToken(refreshToken string) (*tables.AuthResp
 	}
 
 	// TODO: check for blacklisted/revoked tokens
+	isBlacklisted, err := as.cacheService.IsTokenBlacklisted(claims.Jti)
+	if err != nil {
+		as.logger.Error("Failed to check if token is blacklisted", gecho.Field("error", err), gecho.Field("jti", claims.Jti))
+		return nil, err
+	}
+
+	if isBlacklisted {
+		as.logger.Warn("Refresh token is blacklisted", gecho.Field("jti", claims.Jti))
+		return nil, lib.ErrInvalidToken
+	}
 
 	// get user
 	user, err := as.GetUserByID(claims.Sub)
