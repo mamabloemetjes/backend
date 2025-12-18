@@ -35,29 +35,21 @@ func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	accessToken, err := ar.authService.GenerateAccessToken(user)
-	if err != nil {
-		ar.logger.Warn("Failed to generate access token", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("Unable to complete registration. Please try again"), gecho.Send())
-		return
-	}
-
-	refreshToken, err := ar.authService.GenerateRefreshToken(user)
-	if err != nil {
-		ar.logger.Warn("Failed to generate refresh token", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("Unable to complete registration. Please try again"), gecho.Send())
-		return
-	}
-
-	lib.SetCookie(lib.RefreshCookieName, refreshToken, ar.authService.GetRefreshTokenExpiration(), w)
-	lib.SetCookie(lib.AccessCookieName, accessToken, ar.authService.GetAccessTokenExpiration(), w)
-
 	// clear password from user
 	user.PasswordHash = ""
 
+	go func() {
+		// Send verification email
+		result, err := ar.emailService.SendVerificationEmail(user)
+		if err != nil {
+			ar.logger.Error("Failed to send verification email", gecho.Field("error", err), gecho.Field("user_id", user.Id))
+			return
+		}
+		ar.logger.Debug("Verification email sent", gecho.Field("email_verification_id", result.Id), gecho.Field("user_id", user.Id))
+	}()
+
 	gecho.Success(w,
 		gecho.WithMessage("User registered successfully"),
-		gecho.WithData(user),
 		gecho.Send(),
 	)
 }

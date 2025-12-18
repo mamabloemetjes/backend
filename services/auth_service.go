@@ -17,7 +17,7 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-var defaultParams = &structs.ArgonParams{
+var DefaultParams = &structs.ArgonParams{
 	Memory:  64 * 1024, // 64 MB
 	Time:    1,
 	Threads: 4,
@@ -45,13 +45,13 @@ func (as *AuthService) Login(authRequest *structs.AuthRequest) (*tables.User, er
 	startTime := time.Now()
 	user, err := database.Query[tables.User](as.db).Where("email", authRequest.Email).First(context.Background())
 	if err != nil {
-		as.logger.Error("Failed to find user by email", gecho.Field("error", err), gecho.Field("email", authRequest.Email))
+		as.logger.Error("Failed to find user by email", gecho.Field("error", err), gecho.Field("identifier", authRequest.Email))
 		return nil, lib.MapPgError(err)
 	}
 
 	// Check if user was found (First() can return nil, nil for no results)
 	if user == nil {
-		as.logger.Warn("User not found", gecho.Field("email", authRequest.Email))
+		as.logger.Warn("User not found", gecho.Field("identifier", authRequest.Email))
 		return nil, lib.ErrInvalidCredentials
 	}
 
@@ -62,7 +62,7 @@ func (as *AuthService) Login(authRequest *structs.AuthRequest) (*tables.User, er
 		return nil, err
 	}
 	if !valid {
-		as.logger.Warn("Invalid password attempt", gecho.Field("email", authRequest.Email))
+		as.logger.Warn("Invalid password attempt", gecho.Field("identifier", authRequest.Email))
 		return nil, lib.ErrInvalidCredentials
 	}
 
@@ -83,7 +83,7 @@ func (as *AuthService) Login(authRequest *structs.AuthRequest) (*tables.User, er
 
 func (as *AuthService) Register(registerRequest *structs.RegisterRequest) (*tables.User, error) {
 	startTime := time.Now()
-	passwordHash, err := as.HashPassword(registerRequest.Password, defaultParams)
+	passwordHash, err := as.HashPassword(registerRequest.Password, DefaultParams)
 	if err != nil {
 		as.logger.Error("Failed to hash password", gecho.Field("error", err))
 		return nil, err
@@ -104,12 +104,6 @@ func (as *AuthService) Register(registerRequest *structs.RegisterRequest) (*tabl
 
 	// Remove password hash before returning user
 	user.PasswordHash = ""
-
-	// Set user in cache
-	cacheErr := as.cacheService.SetUserInCache(user)
-	if cacheErr != nil {
-		as.logger.Warn("Failed to set user in cache after registration", gecho.Field("error", cacheErr), gecho.Field("user_id", user.Id))
-	}
 
 	return user, nil
 }
@@ -299,4 +293,62 @@ func (as *AuthService) GetAccessTokenSecret() string {
 func (as *AuthService) GetRefreshTokenSecret() string {
 	secret := as.cfg.Auth.RefreshTokenSecret
 	return secret
+}
+
+func (as *AuthService) UpdateLastLogin(userId uuid.UUID) error {
+	updates := map[string]any{
+		"last_login": time.Now(),
+	}
+	_, err := database.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
+	if err != nil {
+		return lib.MapPgError(err)
+	}
+	return nil
+}
+
+func (as *AuthService) VerifyEmail(userId uuid.UUID, token string) error {
+	// Get verification record
+	verification, err := database.Query[tables.EmailVerification](as.db).
+		Where("user_id", userId).
+		Where("token", token).
+		First(context.Background())
+	if err != nil {
+		as.logger.Error("Failed to find email verification record", gecho.Field("error", err), gecho.Field("user_id", userId))
+		return lib.MapPgError(err)
+	}
+	if verification == nil {
+		as.logger.Warn("Email verification record not found", gecho.Field("user_id", userId))
+		return lib.ErrInvalidToken
+	}
+
+	// Check if token is expired
+	if time.Now().After(verification.ExpiresAt) {
+		as.logger.Warn("Email verification token has expired", gecho.Field("user_id", userId), gecho.Field("expires_at", verification.ExpiresAt))
+		return lib.ErrExpiredToken
+	}
+
+	if token != verification.Token {
+		as.logger.Warn("Email verification token does not match", gecho.Field("user_id", userId))
+		return lib.ErrInvalidToken
+	}
+
+	// Update user to set email as verified
+	updates := map[string]any{
+		"email_verified": true,
+	}
+	_, err = database.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
+	if err != nil {
+		as.logger.Error("Failed to update user email verification status", gecho.Field("error", err), gecho.Field("user_id", userId))
+		return lib.MapPgError(err)
+	}
+
+	// Delete verification record
+	_, err = database.Query[tables.EmailVerification](as.db).Where("id", verification.Id).Delete(context.Background())
+	if err != nil {
+		as.logger.Error("Failed to delete email verification record", gecho.Field("error", err), gecho.Field("user_id", userId))
+		return lib.MapPgError(err)
+	}
+
+	as.logger.Info("Email verified successfully", gecho.Field("user_id", userId))
+	return nil
 }

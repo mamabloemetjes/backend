@@ -235,15 +235,6 @@ COMMENT ON COLUMN public.product_images.is_primary IS
     'Indicates if this is the primary/featured image for the product';
 
 -- ============================================================================
--- GRANTS (Adjust based on your user roles)
--- ============================================================================
-
--- Example: Grant permissions to application user
--- GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO your_app_user;
--- GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_images TO your_app_user;
--- GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO your_app_user;
-
--- ============================================================================
 -- ANALYTICS/MONITORING VIEWS (Optional but recommended)
 -- ============================================================================
 

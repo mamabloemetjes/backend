@@ -261,6 +261,10 @@ func (cs *CacheService) GetUserFromCache(userID uuid.UUID) (*tables.User, error)
 
 // SetUserInCache stores a user object in cache with TTL
 func (cs *CacheService) SetUserInCache(user *tables.User) error {
+	if user == nil {
+		// Nothing to cache
+		return nil
+	}
 	cs.logger.Debug("Caching user", "user_id", user.Id)
 	key := fmt.Sprintf("user:%s", user.Id.String())
 	data, err := json.Marshal(user)

@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs/tables"
@@ -175,7 +174,6 @@ func (ar *AdminRoutesManager) UpdateProductsStock(w http.ResponseWriter, r *http
 		rowsAffected, err := database.Query[tables.Product](ar.db).Where("id", productId).Update(r.Context(), map[string]any{
 			"stock": newStock,
 		})
-		fmt.Println("Updated product", productId, "to stock", newStock)
 		if err != nil || rowsAffected == 0 {
 			totalErrors[productId] = err
 			ar.logger.Error("Failed to update product stock", gecho.Field("error", err), gecho.Field("product_id", productId))

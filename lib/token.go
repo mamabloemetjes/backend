@@ -6,11 +6,11 @@ import (
 	"fmt"
 )
 
-// GenerateCSRFToken generates a cryptographically secure random token
-func GenerateCSRFToken() (string, error) {
+// GenerateRandomToken generates a cryptographically secure random token
+func GenerateRandomToken() (string, error) {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
-		return "", fmt.Errorf("failed to generate CSRF token: %w", err)
+		return "", fmt.Errorf("failed to generate token: %w", err)
 	}
 	return base64.URLEncoding.EncodeToString(bytes), nil
 }

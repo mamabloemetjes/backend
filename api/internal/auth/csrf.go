@@ -11,7 +11,7 @@ import (
 // HandleCSRF generates and sets a CSRF token
 func (ar *AuthRoutesManager) HandleCSRF(w http.ResponseWriter, r *http.Request) {
 	// Generate a new CSRF token
-	token, err := lib.GenerateCSRFToken()
+	token, err := lib.GenerateRandomToken()
 	if err != nil {
 		ar.logger.Error("Failed to generate CSRF token", gecho.Field("error", err))
 		gecho.InternalServerError(w,

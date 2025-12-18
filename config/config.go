@@ -19,6 +19,8 @@ func GetConfig() *structs.Config {
 				Environment:    getEnvAsString("APP_ENV", "development"),
 				Port:           getEnvAsString("APP_PORT", ":8082"),
 				LogLevel:       getEnvAsString("APP_LOG_LEVEL", "info"),
+				ServerURL:      getEnvAsString("APP_SERVER_URL", "http://localhost:8082"),
+				FrontendURL:    getEnvAsString("APP_FRONTEND_URL", "http://localhost:3000"),
 				ReadTimeout:    getEnvAsTimeDuration("SERVER_READ_TIME_OUT", 15*time.Second),
 				WriteTimeout:   getEnvAsTimeDuration("SERVER_WRITE_TIME_OUT", 15*time.Second),
 				IdleTimeout:    getEnvAsTimeDuration("SERVER_IDLE_TIME_OUT", 60*time.Second),
@@ -81,6 +83,11 @@ func GetConfig() *structs.Config {
 				ExpensiveWindow: getEnvAsTimeDuration("RATE_LIMIT_EXPENSIVE_WINDOW", 1*time.Minute),
 				AdminLimit:      getEnvAsInt("RATE_LIMIT_ADMIN_LIMIT", 50),
 				AdminWindow:     getEnvAsTimeDuration("RATE_LIMIT_ADMIN_WINDOW", 1*time.Minute),
+			},
+			Email: &structs.EmailConfig{
+				ApiKey:                  getEnvAsString("EMAIL_API_KEY", "no_api_key"),
+				From:                    getEnvAsString("EMAIl_ADDRESS", "no_email"),
+				VerificationTokenExpiry: getEnvAsTimeDuration("EMAIL_VERIFICATION_TOKEN_EXPIRY", 15*time.Minute),
 			},
 		}
 	})

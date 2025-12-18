@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs"
 	"net/http"
@@ -29,6 +30,12 @@ func (ar *AuthRoutesManager) HandleLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if !user.EmailVerified {
+		ar.logger.Warn("Email not verified", gecho.Field("userID", user.Id))
+		gecho.Forbidden(w, gecho.WithMessage(fmt.Sprintf("Please verify your email address (%s) before logging in", user.Email)), gecho.Send())
+		return
+	}
+
 	accessToken, err := ar.authService.GenerateAccessToken(user)
 	if err != nil {
 		ar.logger.Warn("Failed to generate access token", gecho.Field("error", err))
@@ -45,6 +52,14 @@ func (ar *AuthRoutesManager) HandleLogin(w http.ResponseWriter, r *http.Request)
 
 	lib.SetCookie(lib.RefreshCookieName, refreshToken, ar.authService.GetRefreshTokenExpiration(), w)
 	lib.SetCookie(lib.AccessCookieName, accessToken, ar.authService.GetAccessTokenExpiration(), w)
+
+	// Send last login to db asynchronously
+	go func() {
+		err := ar.authService.UpdateLastLogin(user.Id)
+		if err != nil {
+			ar.logger.Error("Failed to update last login", gecho.Field("error", err), gecho.Field("userID", user.Id))
+		}
+	}()
 
 	// clear password from user
 	user.PasswordHash = ""

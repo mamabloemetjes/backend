@@ -15,6 +15,7 @@ type AuthRoutesManager struct {
 	db           *database.DB
 	authService  *services.AuthService
 	cacheService *services.CacheService
+	emailService *services.EmailService
 	cfg          *structs.Config
 	mw           *middleware.Middleware
 }
@@ -27,6 +28,11 @@ func NewAuthRoutesManager(cfg *structs.Config, logger *gecho.Logger, db *databas
 		cacheService: services.NewCacheService(
 			logger,
 			cfg,
+		),
+		emailService: services.NewEmailService(
+			logger,
+			cfg,
+			db,
 		),
 		cfg: cfg,
 		mw:  mw,
@@ -46,5 +52,6 @@ func (rrm *AuthRoutesManager) RegisterRoutes(r chi.Router) {
 			r.Post("/logout", rrm.HandleLogout)
 		})
 		r.Get("/me", rrm.HandleMe)
+		r.Get("/verify-email", rrm.HandleVerifyEmail)
 	})
 }

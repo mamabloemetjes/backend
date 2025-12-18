@@ -9,6 +9,7 @@ type Config struct {
 	Auth      *AuthConfig
 	Cache     *CacheConfig
 	RateLimit *RateLimitConfig
+	Email     *EmailConfig
 }
 
 type ServerConfig struct {
@@ -16,6 +17,8 @@ type ServerConfig struct {
 	Environment    string        // development, production
 	Port           string        // :8082
 	LogLevel       string        // debug, info, warn, error
+	ServerURL      string        // Base URL of the server
+	FrontendURL    string        // Base URL of the frontend
 	ReadTimeout    time.Duration // in seconds
 	WriteTimeout   time.Duration // in seconds
 	IdleTimeout    time.Duration // in seconds
@@ -92,4 +95,10 @@ type RateLimitConfig struct {
 
 	// Enable/disable rate limiting
 	Enabled bool
+}
+
+type EmailConfig struct {
+	ApiKey                  string
+	From                    string
+	VerificationTokenExpiry time.Duration
 }
