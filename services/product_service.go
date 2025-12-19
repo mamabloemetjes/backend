@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MonkyMars/gecho"
+	"github.com/google/uuid"
 )
 
 type ProductService struct {
@@ -465,18 +466,51 @@ func (ps *ProductService) applySorting(query *database.QueryBuilder[tables.Produ
 func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Product) (*tables.Product, error) {
 	startTime := time.Now()
 
+	// Generate UUID for product if not set (needed for image references)
+	if product.ID == uuid.Nil {
+		product.ID = uuid.New()
+	}
+
 	// Calculate subtotal
 	product.Subtotal = product.Price - product.Discount + product.Tax
 
-	// Insert the new product
-	_, err := database.Query[tables.Product](ps.db).Insert(ctx, product)
+	// Store images separately to insert them after product creation
+	images := product.Images
+	product.Images = nil // Remove images from product to avoid relation insert issues
+
+	// Insert product into database
+	product, err := database.Query[tables.Product](ps.db).Insert(ctx, product)
 	if err != nil {
 		ps.logger.Error("Failed to create product",
 			gecho.Field("error", err),
+			gecho.Field("product_name", product.Name),
 			gecho.Field("duration", time.Since(startTime)),
 		)
 		return nil, fmt.Errorf("failed to create product: %w", err)
 	}
+
+	// Insert images if any
+	if len(images) > 0 {
+		for i := range images {
+			// Generate UUID for image if not set
+			if images[i].ID == uuid.Nil {
+				images[i].ID = uuid.New()
+			}
+			images[i].ProductID = product.ID
+		}
+
+		_, imgErr := database.Query[tables.ProductImage](ps.db).InsertMany(ctx, images)
+		if imgErr != nil {
+			ps.logger.Error("Failed to insert product images",
+				gecho.Field("error", imgErr),
+				gecho.Field("product_id", product.ID),
+			)
+			return nil, fmt.Errorf("failed to insert product images: %w", imgErr)
+		}
+	}
+
+	// Restore images to the product object for the response
+	product.Images = images
 
 	// Invalidate product caches asynchronously
 	go func() {
@@ -490,6 +524,7 @@ func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Pro
 
 	ps.logger.Info("Product created successfully",
 		gecho.Field("id", product.ID),
+		gecho.Field("image_count", len(images)),
 		gecho.Field("duration", time.Since(startTime)),
 	)
 	return product, nil

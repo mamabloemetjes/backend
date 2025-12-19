@@ -18,6 +18,22 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Debug log to check if images are received
+	ar.logger.Debug("CreateProduct request received",
+		gecho.Field("product_name", body.Name),
+		gecho.Field("images_count", len(body.Images)),
+	)
+	if len(body.Images) > 0 {
+		for i, img := range body.Images {
+			ar.logger.Debug("Image received",
+				gecho.Field("index", i),
+				gecho.Field("url", img.URL),
+				gecho.Field("alt_text", img.AltText),
+				gecho.Field("is_primary", img.IsPrimary),
+			)
+		}
+	}
+
 	// Normalize colors to lowercase
 	if len(body.Colors) > 0 {
 		for i, color := range body.Colors {
