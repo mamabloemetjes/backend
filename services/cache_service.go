@@ -71,7 +71,7 @@ func getRedisClient() *redis.Client {
 }
 
 // CloseRedisConnection closes the Redis connection pool
-func CloseRedisConnection() error {
+func (cs *CacheService) Close() error {
 	if redisClient != nil {
 		return redisClient.Close()
 	}

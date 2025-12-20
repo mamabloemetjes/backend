@@ -2,7 +2,6 @@ package auth
 
 import (
 	"mamabloemetjes_server/api/middleware"
-	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/services"
 	"mamabloemetjes_server/structs"
 
@@ -12,7 +11,6 @@ import (
 
 type AuthRoutesManager struct {
 	logger       *gecho.Logger
-	db           *database.DB
 	authService  *services.AuthService
 	cacheService *services.CacheService
 	emailService *services.EmailService
@@ -20,22 +18,21 @@ type AuthRoutesManager struct {
 	mw           *middleware.Middleware
 }
 
-func NewAuthRoutesManager(cfg *structs.Config, logger *gecho.Logger, db *database.DB, mw *middleware.Middleware) *AuthRoutesManager {
+func NewAuthRoutesManager(
+	logger *gecho.Logger,
+	authService *services.AuthService,
+	emailService *services.EmailService,
+	cacheService *services.CacheService,
+	cfg *structs.Config,
+	mw *middleware.Middleware,
+) *AuthRoutesManager {
 	return &AuthRoutesManager{
-		logger:      logger,
-		db:          db,
-		authService: services.NewAuthService(cfg, logger, db),
-		cacheService: services.NewCacheService(
-			logger,
-			cfg,
-		),
-		emailService: services.NewEmailService(
-			logger,
-			cfg,
-			db,
-		),
-		cfg: cfg,
-		mw:  mw,
+		logger:       logger,
+		authService:  authService,
+		emailService: emailService,
+		cacheService: cacheService,
+		cfg:          cfg,
+		mw:           mw,
 	}
 }
 

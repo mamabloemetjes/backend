@@ -1,13 +1,10 @@
 package admin
 
 import (
-	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/structs/tables"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Request) {
@@ -16,7 +13,7 @@ func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Reque
 		gecho.BadRequest(w, gecho.WithMessage("Please select a product to delete"), gecho.Send())
 		return
 	}
-	total, err := database.Query[tables.Product](ar.db).Where("id", productId).Delete(r.Context())
+	total, err := ar.productService.DeleteProductByID(r.Context(), productId)
 	if err != nil {
 		ar.logger.Error("Failed to delete product", gecho.Field("error", err), gecho.Field("product_id", productId))
 		gecho.InternalServerError(w, gecho.WithMessage("Unable to delete product. Please try again"), gecho.Send())
@@ -25,19 +22,6 @@ func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Reque
 	if total == 0 {
 		gecho.NotFound(w, gecho.WithMessage("Product not found"), gecho.Send())
 		return
-	}
-
-	// Invalidate product caches asynchronously
-	productUUID, parseErr := uuid.Parse(productId)
-	if parseErr == nil {
-		go func(id uuid.UUID) {
-			if cacheErr := ar.cacheService.InvalidateProductCaches(id); cacheErr != nil {
-				ar.logger.Warn("Failed to invalidate product caches after deletion",
-					gecho.Field("error", cacheErr),
-					gecho.Field("product_id", id),
-				)
-			}
-		}(productUUID)
 	}
 
 	gecho.Success(w,

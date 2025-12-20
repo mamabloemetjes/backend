@@ -1,15 +1,11 @@
 package api
 
 import (
-	"mamabloemetjes_server/api/internal/admin"
-	"mamabloemetjes_server/api/internal/auth"
-	"mamabloemetjes_server/api/internal/health"
-	"mamabloemetjes_server/api/internal/products"
-	"mamabloemetjes_server/api/middleware"
-	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/structs"
+	"mamabloemetjes_server/api/admin"
+	"mamabloemetjes_server/api/auth"
+	"mamabloemetjes_server/api/health"
+	"mamabloemetjes_server/api/products"
 
-	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -21,16 +17,16 @@ type routerManager struct {
 }
 
 func NewRouterManager(
-	logger *gecho.Logger,
-	db *database.DB,
-	cfg *structs.Config,
-	mw *middleware.Middleware,
+	productRoutes *products.ProductRoutesManager,
+	healthRoutes *health.HealthRoutesManager,
+	authRoutes *auth.AuthRoutesManager,
+	adminRoutes *admin.AdminRoutesManager,
 ) *routerManager {
 	return &routerManager{
-		productRoutes: products.NewProductRoutesManager(logger, db, cfg),
-		healthRoutes:  health.NewHealthRoutesManager(logger, db),
-		authRoutes:    auth.NewAuthRoutesManager(cfg, logger, db, mw),
-		adminRoutes:   admin.NewAuthRoutesManager(cfg, logger, db, mw),
+		productRoutes: productRoutes,
+		healthRoutes:  healthRoutes,
+		authRoutes:    authRoutes,
+		adminRoutes:   adminRoutes,
 	}
 }
 

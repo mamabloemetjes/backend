@@ -1,9 +1,7 @@
 package products
 
 import (
-	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/services"
-	"mamabloemetjes_server/structs"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
@@ -11,20 +9,16 @@ import (
 
 type ProductRoutesManager struct {
 	logger         *gecho.Logger
-	db             *database.DB
 	productService *services.ProductService
-	cacheService   *services.CacheService
-	cfg            *structs.Config
 }
 
-func NewProductRoutesManager(logger *gecho.Logger, db *database.DB, cfg *structs.Config) *ProductRoutesManager {
-	cacheService := services.NewCacheService(logger, cfg)
+func NewProductRoutesManager(
+	logger *gecho.Logger,
+	productService *services.ProductService,
+) *ProductRoutesManager {
 	return &ProductRoutesManager{
 		logger:         logger,
-		db:             db,
-		cfg:            cfg,
-		cacheService:   cacheService,
-		productService: services.NewProductService(logger, db, cacheService),
+		productService: productService,
 	}
 }
 

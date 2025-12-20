@@ -2,9 +2,7 @@ package admin
 
 import (
 	"mamabloemetjes_server/api/middleware"
-	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/services"
-	"mamabloemetjes_server/structs"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
@@ -12,24 +10,19 @@ import (
 
 type AdminRoutesManager struct {
 	logger         *gecho.Logger
-	db             *database.DB
-	authService    *services.AuthService
 	productService *services.ProductService
-	cacheService   *services.CacheService
-	cfg            *structs.Config
 	mw             *middleware.Middleware
 }
 
-func NewAuthRoutesManager(cfg *structs.Config, logger *gecho.Logger, db *database.DB, mw *middleware.Middleware) *AdminRoutesManager {
-	cacheService := services.NewCacheService(logger, cfg)
+func NewAdminRoutesManager(
+	logger *gecho.Logger,
+	productService *services.ProductService,
+	mw *middleware.Middleware,
+) *AdminRoutesManager {
 	return &AdminRoutesManager{
 		logger:         logger,
-		db:             db,
-		cfg:            cfg,
+		productService: productService,
 		mw:             mw,
-		cacheService:   cacheService,
-		productService: services.NewProductService(logger, db, cacheService),
-		authService:    services.NewAuthService(cfg, logger, db),
 	}
 }
 

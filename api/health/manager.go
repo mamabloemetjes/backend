@@ -1,24 +1,18 @@
 package health
 
 import (
-	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/services"
 
-	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 )
 
 type HealthRoutesManager struct {
-	logger        *gecho.Logger
-	db            *database.DB
 	healthService *services.HealthService
 }
 
-func NewHealthRoutesManager(logger *gecho.Logger, db *database.DB) *HealthRoutesManager {
+func NewHealthRoutesManager(healthService *services.HealthService) *HealthRoutesManager {
 	return &HealthRoutesManager{
-		logger:        logger,
-		db:            db,
-		healthService: services.NewHealthService(logger, db),
+		healthService: healthService,
 	}
 }
 

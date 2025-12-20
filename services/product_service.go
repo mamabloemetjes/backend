@@ -6,10 +6,13 @@ import (
 	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/structs"
 	"mamabloemetjes_server/structs/tables"
+	"strings"
 	"time"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type ProductService struct {
@@ -528,4 +531,187 @@ func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Pro
 		gecho.Field("duration", time.Since(startTime)),
 	)
 	return product, nil
+}
+
+type UpdateProductRequest struct {
+	Name        *string               `json:"name,omitempty"`
+	SKU         *string               `json:"sku,omitempty"`
+	Price       *uint64               `json:"price,omitempty"`
+	Discount    *uint64               `json:"discount,omitempty"`
+	Tax         *uint64               `json:"tax,omitempty"`
+	Description *string               `json:"description,omitempty"`
+	IsActive    *bool                 `json:"is_active,omitempty"`
+	Size        *string               `json:"size,omitempty"`
+	Colors      []string              `json:"colors,omitempty"`
+	ProductType *string               `json:"product_type,omitempty"`
+	Stock       *uint16               `json:"stock,omitempty"`
+	Images      []tables.ProductImage `json:"images,omitempty"`
+}
+
+func (ps *ProductService) DeleteProductByID(ctx context.Context, productID string) (int, error) {
+	total, err := database.Query[tables.Product](ps.db).Where("id", productID).Delete(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete product: %w", err)
+	}
+
+	// Invalidate product caches asynchronously
+	productUUID, parseErr := uuid.Parse(productID)
+	if parseErr == nil {
+		go func(id uuid.UUID) {
+			if cacheErr := ps.cacheService.InvalidateProductCaches(id); cacheErr != nil {
+				ps.logger.Warn("Failed to invalidate product caches after deletion",
+					gecho.Field("error", cacheErr),
+					gecho.Field("product_id", id),
+				)
+			}
+		}(productUUID)
+	}
+	return total, nil
+}
+
+func (ps *ProductService) UpdateProductStock(ctx context.Context, productID string, newStock int) (int, error) {
+	rowsAffected, err := database.Query[tables.Product](ps.db).Where("id", productID).Update(ctx, map[string]any{
+		"stock": newStock,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to update product stock: %w", err)
+	}
+
+	// Invalidate product caches asynchronously
+	productUUID, parseErr := uuid.Parse(productID)
+	if parseErr == nil {
+		go func(id uuid.UUID) {
+			if cacheErr := ps.cacheService.InvalidateProductCaches(id); cacheErr != nil {
+				ps.logger.Warn("Failed to invalidate product caches after stock update",
+					gecho.Field("error", cacheErr),
+					gecho.Field("product_id", id),
+				)
+			}
+		}(productUUID)
+	}
+	return rowsAffected, nil
+}
+
+func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID, req *UpdateProductRequest) error {
+	return database.Transaction(ps.db, ctx, func(tx bun.Tx) error {
+		// Build update map with only provided fields
+		updateData := make(map[string]any)
+
+		if req.Name != nil {
+			updateData["name"] = *req.Name
+		}
+		if req.SKU != nil {
+			updateData["sku"] = *req.SKU
+		}
+		if req.Price != nil {
+			updateData["price"] = *req.Price
+		}
+		if req.Discount != nil {
+			updateData["discount"] = *req.Discount
+		}
+		if req.Tax != nil {
+			updateData["tax"] = *req.Tax
+		}
+		if req.Description != nil {
+			updateData["description"] = *req.Description
+		}
+		if req.IsActive != nil {
+			updateData["is_active"] = *req.IsActive
+		}
+		if req.Size != nil {
+			updateData["size"] = *req.Size
+		}
+		if req.ProductType != nil {
+			updateData["product_type"] = *req.ProductType
+		}
+		if req.Stock != nil {
+			updateData["stock"] = *req.Stock
+		}
+		if req.Colors != nil {
+			// Normalize colors to lowercase
+			normalizedColors := make([]string, len(req.Colors))
+			for i, color := range req.Colors {
+				normalizedColors[i] = strings.ToLower(color)
+			}
+			updateData["colors"] = pgdialect.Array(normalizedColors)
+		}
+
+		// Handle images update if provided
+		if req.Images != nil {
+			// Delete existing images
+			if _, err := database.Query[tables.ProductImage](ps.db).Where("product_id", productID.String()).Delete(ctx); err != nil {
+				return fmt.Errorf("failed to delete existing images: %w", err)
+			}
+
+			//ps.db.NewDelete().Model((*tables.ProductImage)(nil)).Where("product_id = ?", productID).Exec(ctx)
+
+			// Insert new images if any provided
+			if len(req.Images) > 0 {
+				hasPrimary := false
+				for i := range req.Images {
+					if req.Images[i].ID == uuid.Nil {
+						req.Images[i].ID = uuid.New()
+					}
+					req.Images[i].ProductID = productID
+					if req.Images[i].IsPrimary {
+						if hasPrimary {
+							req.Images[i].IsPrimary = false
+						} else {
+							hasPrimary = true
+						}
+					}
+				}
+
+				if !hasPrimary && len(req.Images) > 0 {
+					req.Images[0].IsPrimary = true
+				}
+
+				if _, err := ps.db.NewInsert().Model(&req.Images).Exec(ctx); err != nil {
+					return fmt.Errorf("failed to insert new images: %w", err)
+				}
+			}
+		}
+
+		// Calculate subtotal if price, discount, or tax changed
+		if req.Price != nil || req.Discount != nil || req.Tax != nil {
+			currentProduct, err := database.Query[tables.Product](ps.db).Where("id", productID).First(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to fetch current product for subtotal calculation: %w", err)
+			}
+
+			price := currentProduct.Price
+			discount := currentProduct.Discount
+			tax := currentProduct.Tax
+
+			if req.Price != nil {
+				price = *req.Price
+			}
+			if req.Discount != nil {
+				discount = *req.Discount
+			}
+			if req.Tax != nil {
+				tax = *req.Tax
+			}
+			updateData["subtotal"] = price - discount + tax
+		}
+
+		// Perform the update if there is data to update
+		if len(updateData) > 0 {
+			if _, err := database.Query[tables.Product](ps.db).Where("id", productID).Update(ctx, updateData); err != nil {
+				return fmt.Errorf("failed to update product: %w", err)
+			}
+		}
+
+		// Invalidate product caches asynchronously
+		go func() {
+			if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
+				ps.logger.Warn("Failed to invalidate product caches after update",
+					gecho.Field("error", err),
+					gecho.Field("product_id", productID),
+				)
+			}
+		}()
+
+		return nil
+	})
 }

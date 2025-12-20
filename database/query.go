@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"mamabloemetjes_server/config"
 	"time"
 
@@ -21,11 +20,8 @@ type DB struct {
 	logger *gecho.Logger
 }
 
-var instance *DB
-
 // Connect establishes a connection to the database using centralized configuration
-func Connect() (*DB, error) {
-	logger := config.GetLogger()
+func Connect(logger *gecho.Logger) (*DB, error) {
 	cfg := config.GetConfig()
 	dbCfg := cfg.Database
 
@@ -83,40 +79,12 @@ func Connect() (*DB, error) {
 	}, nil
 }
 
-// Initialize sets up the global database instance using centralized configuration
-func Initialize() error {
-	db, err := Connect()
-	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-
-	instance = db
-	return nil
-}
-
-// GetInstance returns the global database instance
-// This is the primary way to access the database throughout the application
-func GetInstance() *DB {
-	if instance == nil {
-		log.Fatal("Database instance is not initialized. Call Initialize() first.")
-	}
-	return instance
-}
-
 // Close closes the database connection
 func (db *DB) Close() error {
 	if err := db.DB.Close(); err != nil {
 		return err
 	}
 	return db.sqlDB.Close()
-}
-
-// CloseInstance closes the global database instance
-func CloseInstance() error {
-	if instance != nil {
-		return instance.Close()
-	}
-	return nil
 }
 
 // Health checks the database connection health

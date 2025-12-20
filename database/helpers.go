@@ -68,12 +68,7 @@ func RawExec(db *DB, ctx context.Context, query string, args ...any) (int, error
 }
 
 // Transaction executes a function within a database transaction with automatic retry
-func Transaction(ctx context.Context, fn func(bun.Tx) error) error {
-	db := GetInstance()
-	if db == nil {
-		return fmt.Errorf("database instance not initialized")
-	}
-
+func Transaction(db *DB, ctx context.Context, fn func(bun.Tx) error) error {
 	return WithRetry(ctx, func() error {
 		return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 			return fn(tx)
@@ -82,13 +77,8 @@ func Transaction(ctx context.Context, fn func(bun.Tx) error) error {
 }
 
 // TransactionWithResult executes a function within a transaction and returns a result with automatic retry
-func TransactionWithResult[T any](ctx context.Context, fn func(bun.Tx) (T, error)) (T, error) {
+func TransactionWithResult[T any](db *DB, ctx context.Context, fn func(bun.Tx) (T, error)) (T, error) {
 	var result T
-	db := GetInstance()
-	if db == nil {
-		return result, fmt.Errorf("database instance not initialized")
-	}
-
 	err := WithRetry(ctx, func() error {
 		return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 			var err error
@@ -101,12 +91,7 @@ func TransactionWithResult[T any](ctx context.Context, fn func(bun.Tx) (T, error
 }
 
 // TransactionWithOptions executes a transaction with custom options
-func TransactionWithOptions(ctx context.Context, opts *sql.TxOptions, fn func(bun.Tx) error) error {
-	db := GetInstance()
-	if db == nil {
-		return fmt.Errorf("database instance not initialized")
-	}
-
+func TransactionWithOptions(db *DB, ctx context.Context, opts *sql.TxOptions, fn func(bun.Tx) error) error {
 	return WithRetry(ctx, func() error {
 		return db.RunInTx(ctx, opts, func(ctx context.Context, tx bun.Tx) error {
 			return fn(tx)
@@ -115,8 +100,8 @@ func TransactionWithOptions(ctx context.Context, opts *sql.TxOptions, fn func(bu
 }
 
 // ReadOnlyTransaction executes a read-only transaction
-func ReadOnlyTransaction(ctx context.Context, fn func(bun.Tx) error) error {
-	return TransactionWithOptions(ctx, &sql.TxOptions{ReadOnly: true}, fn)
+func ReadOnlyTransaction(db *DB, ctx context.Context, fn func(bun.Tx) error) error {
+	return TransactionWithOptions(db, ctx, &sql.TxOptions{ReadOnly: true}, fn)
 }
 
 // Pagination represents pagination parameters
@@ -393,7 +378,7 @@ func FirstOrCreate[T any](db *DB, ctx context.Context, search map[string]any, de
 	}
 
 	// Record doesn't exist, create it using a transaction
-	return Transaction(ctx, func(tx bun.Tx) error {
+	return Transaction(db, ctx, func(tx bun.Tx) error {
 		// Merge search and defaults
 		query := tx.NewInsert().Model(result)
 
@@ -421,7 +406,7 @@ func UpdateOrCreate[T any](db *DB, ctx context.Context, search map[string]any, u
 	}
 
 	// Record doesn't exist, create it using a transaction
-	return Transaction(ctx, func(tx bun.Tx) error {
+	return Transaction(db, ctx, func(tx bun.Tx) error {
 		query := tx.NewInsert().Model(result)
 		_, err := query.Exec(ctx)
 		return err
