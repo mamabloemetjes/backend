@@ -2,10 +2,8 @@ package admin
 
 import (
 	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs"
 	"mamabloemetjes_server/structs/tables"
 	"net/http"
-	"strings"
 
 	"github.com/MonkyMars/gecho"
 )
@@ -31,13 +29,6 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 				gecho.Field("alt_text", img.AltText),
 				gecho.Field("is_primary", img.IsPrimary),
 			)
-		}
-	}
-
-	// Normalize colors to lowercase
-	if len(body.Colors) > 0 {
-		for i, color := range body.Colors {
-			body.Colors[i] = structs.Color(strings.ToLower(string(color)))
 		}
 	}
 

@@ -164,7 +164,7 @@ func handleForeignKeyViolation(detail, constraintName, tableName string, origina
 
 // handleNotNullViolation processes NOT NULL constraint violations
 func handleNotNullViolation(message, tableName, columnName string, originalErr error) error {
-	userMessage := fmt.Sprintf("error.notNullViolation.default", humanizeColumnName(columnName))
+	userMessage := fmt.Sprintf("error.notNullViolation.default %s", humanizeColumnName(columnName))
 
 	return &DatabaseError{
 		Type:          "not_null_violation",
@@ -244,7 +244,7 @@ func createUniqueViolationMessage(field, table string) string {
 		}
 		return "error.uniqueViolation.itemName"
 	default:
-		return fmt.Sprintf("error.uniqueViolation.default", humanizeColumnName(field))
+		return fmt.Sprintf("error.uniqueViolation.default %s", humanizeColumnName(field))
 	}
 }
 

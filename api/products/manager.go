@@ -10,15 +10,18 @@ import (
 type ProductRoutesManager struct {
 	logger         *gecho.Logger
 	productService *services.ProductService
+	emailService   *services.EmailService
 }
 
 func NewProductRoutesManager(
 	logger *gecho.Logger,
 	productService *services.ProductService,
+	emailService *services.EmailService,
 ) *ProductRoutesManager {
 	return &ProductRoutesManager{
 		logger:         logger,
 		productService: productService,
+		emailService:   emailService,
 	}
 }
 

@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/structs"
 	"mamabloemetjes_server/structs/tables"
-	"strings"
 	"time"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type ProductService struct {
@@ -37,12 +34,8 @@ type ProductListOptions struct {
 
 	// Filters
 	IsActive      *bool      `json:"is_active,omitempty"`      // Filter by active status
-	ProductType   string     `json:"product_type,omitempty"`   // Filter by product type (flower, bouquet)
 	MinPrice      *uint64    `json:"min_price,omitempty"`      // Minimum price in cents
 	MaxPrice      *uint64    `json:"max_price,omitempty"`      // Maximum price in cents
-	Size          string     `json:"size,omitempty"`           // Filter by size
-	Colors        []string   `json:"colors,omitempty"`         // Filter by colors (OR condition)
-	InStock       *bool      `json:"in_stock,omitempty"`       // Only products with stock > 0
 	SearchTerm    string     `json:"search_term,omitempty"`    // Search in name, description, SKU
 	SKUs          []string   `json:"skus,omitempty"`           // Filter by specific SKUs
 	ExcludeSKUs   []string   `json:"exclude_skus,omitempty"`   // Exclude specific SKUs
@@ -50,7 +43,7 @@ type ProductListOptions struct {
 	CreatedBefore *time.Time `json:"created_before,omitempty"` // Products created before this date
 
 	// Sorting
-	SortBy        string `json:"sort_by"`        // Field to sort by (created_at, price, name, stock)
+	SortBy        string `json:"sort_by"`        // Field to sort by (created_at, price, name)
 	SortDirection string `json:"sort_direction"` // ASC or DESC
 
 	// Relations
@@ -333,7 +326,6 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 		"updated_at": true,
 		"price":      true,
 		"name":       true,
-		"stock":      true,
 		"sku":        true,
 	}
 	if !validSortFields[opts.SortBy] {
@@ -343,22 +335,6 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 	// Validate sort direction
 	if opts.SortDirection != "ASC" && opts.SortDirection != "DESC" {
 		return fmt.Errorf("invalid sort direction: %s (must be ASC or DESC)", opts.SortDirection)
-	}
-
-	// Validate product type if specified
-	if opts.ProductType != "" {
-		if opts.ProductType != string(structs.Flower) && opts.ProductType != string(structs.Bouquet) {
-			return fmt.Errorf("invalid product type: %s", opts.ProductType)
-		}
-	}
-
-	// Validate size if specified
-	if opts.Size != "" {
-		if opts.Size != string(structs.SizeSmall) &&
-			opts.Size != string(structs.SizeMedium) &&
-			opts.Size != string(structs.SizeLarge) {
-			return fmt.Errorf("invalid size: %s", opts.Size)
-		}
 	}
 
 	// Validate price range
@@ -376,37 +352,12 @@ func (ps *ProductService) applyFilters(query *database.QueryBuilder[tables.Produ
 		query = query.Where("is_active", *opts.IsActive)
 	}
 
-	// Filter by product type
-	if opts.ProductType != "" {
-		query = query.Where("product_type", opts.ProductType)
-	}
-
 	// Filter by price range
 	if opts.MinPrice != nil {
 		query = query.WhereOp("price", ">=", *opts.MinPrice)
 	}
 	if opts.MaxPrice != nil {
 		query = query.WhereOp("price", "<=", *opts.MaxPrice)
-	}
-
-	// Filter by size
-	if opts.Size != "" {
-		query = query.Where("size", opts.Size)
-	}
-
-	// Filter by colors (OR condition - product has ANY of the specified colors)
-	if len(opts.Colors) > 0 {
-		// Convert colors to interface slice
-		colorInterfaces := make([]any, len(opts.Colors))
-		for i, color := range opts.Colors {
-			colorInterfaces[i] = color
-		}
-		query = query.WhereRaw("colors && ?", colorInterfaces) // PostgreSQL array overlap operator
-	}
-
-	// Filter by stock availability
-	if opts.InStock != nil && *opts.InStock {
-		query = query.WhereOp("stock", ">", 0)
 	}
 
 	// Search in name, description, or SKU
@@ -541,55 +492,7 @@ type UpdateProductRequest struct {
 	Tax         *uint64               `json:"tax,omitempty"`
 	Description *string               `json:"description,omitempty"`
 	IsActive    *bool                 `json:"is_active,omitempty"`
-	Size        *string               `json:"size,omitempty"`
-	Colors      []string              `json:"colors,omitempty"`
-	ProductType *string               `json:"product_type,omitempty"`
-	Stock       *uint16               `json:"stock,omitempty"`
 	Images      []tables.ProductImage `json:"images,omitempty"`
-}
-
-func (ps *ProductService) DeleteProductByID(ctx context.Context, productID string) (int, error) {
-	total, err := database.Query[tables.Product](ps.db).Where("id", productID).Delete(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to delete product: %w", err)
-	}
-
-	// Invalidate product caches asynchronously
-	productUUID, parseErr := uuid.Parse(productID)
-	if parseErr == nil {
-		go func(id uuid.UUID) {
-			if cacheErr := ps.cacheService.InvalidateProductCaches(id); cacheErr != nil {
-				ps.logger.Warn("Failed to invalidate product caches after deletion",
-					gecho.Field("error", cacheErr),
-					gecho.Field("product_id", id),
-				)
-			}
-		}(productUUID)
-	}
-	return total, nil
-}
-
-func (ps *ProductService) UpdateProductStock(ctx context.Context, productID string, newStock int) (int, error) {
-	rowsAffected, err := database.Query[tables.Product](ps.db).Where("id", productID).Update(ctx, map[string]any{
-		"stock": newStock,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("failed to update product stock: %w", err)
-	}
-
-	// Invalidate product caches asynchronously
-	productUUID, parseErr := uuid.Parse(productID)
-	if parseErr == nil {
-		go func(id uuid.UUID) {
-			if cacheErr := ps.cacheService.InvalidateProductCaches(id); cacheErr != nil {
-				ps.logger.Warn("Failed to invalidate product caches after stock update",
-					gecho.Field("error", cacheErr),
-					gecho.Field("product_id", id),
-				)
-			}
-		}(productUUID)
-	}
-	return rowsAffected, nil
 }
 
 func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID, req *UpdateProductRequest) error {
@@ -618,23 +521,6 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 		if req.IsActive != nil {
 			updateData["is_active"] = *req.IsActive
 		}
-		if req.Size != nil {
-			updateData["size"] = *req.Size
-		}
-		if req.ProductType != nil {
-			updateData["product_type"] = *req.ProductType
-		}
-		if req.Stock != nil {
-			updateData["stock"] = *req.Stock
-		}
-		if req.Colors != nil {
-			// Normalize colors to lowercase
-			normalizedColors := make([]string, len(req.Colors))
-			for i, color := range req.Colors {
-				normalizedColors[i] = strings.ToLower(color)
-			}
-			updateData["colors"] = pgdialect.Array(normalizedColors)
-		}
 
 		// Handle images update if provided
 		if req.Images != nil {
@@ -642,8 +528,6 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 			if _, err := database.Query[tables.ProductImage](ps.db).Where("product_id", productID.String()).Delete(ctx); err != nil {
 				return fmt.Errorf("failed to delete existing images: %w", err)
 			}
-
-			//ps.db.NewDelete().Model((*tables.ProductImage)(nil)).Where("product_id = ?", productID).Exec(ctx)
 
 			// Insert new images if any provided
 			if len(req.Images) > 0 {

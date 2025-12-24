@@ -67,7 +67,7 @@ func run() error {
 
 	// Initialize route managers
 	healthRoutes := health.NewHealthRoutesManager(serviceManager.HealthService)
-	productRoutes := products.NewProductRoutesManager(logger, serviceManager.ProductService)
+	productRoutes := products.NewProductRoutesManager(logger, serviceManager.ProductService, serviceManager.EmailService)
 	authRoutes := auth.NewAuthRoutesManager(logger, serviceManager.AuthService, serviceManager.EmailService, serviceManager.CacheService, cfg, mw)
 	adminRoutes := admin.NewAdminRoutesManager(logger, serviceManager.ProductService, mw)
 

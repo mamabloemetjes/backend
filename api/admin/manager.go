@@ -35,9 +35,7 @@ func (ar *AdminRoutesManager) RegisterRoutes(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(ar.mw.CSRFMiddleware())
 			r.Post("/products", ar.CreateProduct)
-			r.Put("/products/{id}", ar.UpdateProducts)
-			r.Put("/products/{id}/stock", ar.UpdateProductsStock)
-			r.Delete("/products/{id}", ar.DeleteProduct)
+			r.Put("/products", ar.UpdateProducts)
 		})
 	})
 }

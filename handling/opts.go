@@ -46,22 +46,6 @@ func ParseProductListOptions(r *http.Request) (*services.ProductListOptions, err
 		opts.IsActive = &valBool
 	}
 
-	if inStock := query.Get("in_stock"); inStock != "" {
-		if valBool, err = strconv.ParseBool(inStock); err != nil {
-			return nil, err
-		}
-		opts.InStock = &valBool
-	}
-
-	// Parse string filters (no allocation needed)
-	if productType := query.Get("product_type"); productType != "" {
-		opts.ProductType = productType
-	}
-
-	if size := query.Get("size"); size != "" {
-		opts.Size = size
-	}
-
 	if searchTerm := query.Get("search"); searchTerm != "" {
 		opts.SearchTerm = searchTerm
 	}
@@ -79,11 +63,6 @@ func ParseProductListOptions(r *http.Request) (*services.ProductListOptions, err
 			return nil, err
 		}
 		opts.MaxPrice = &val64
-	}
-
-	// Parse comma-separated lists
-	if colors := query.Get("colors"); colors != "" {
-		opts.Colors = splitAndTrim(colors)
 	}
 
 	if skus := query.Get("skus"); skus != "" {

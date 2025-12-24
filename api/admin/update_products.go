@@ -59,10 +59,6 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 			Tax:         updateReq.Tax,
 			Description: updateReq.Description,
 			IsActive:    updateReq.IsActive,
-			Size:        updateReq.Size,
-			Colors:      updateReq.Colors,
-			ProductType: updateReq.ProductType,
-			Stock:       updateReq.Stock,
 			Images:      updateReq.Images,
 		}
 
@@ -82,32 +78,4 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 	}
 
 	gecho.Success(w, gecho.WithMessage("success.products.updated"), gecho.Send())
-}
-
-func (ar *AdminRoutesManager) UpdateProductsStock(w http.ResponseWriter, r *http.Request) {
-	body, err := lib.ExtractAndValidateBody[UpdateProductsStockRequest](r)
-	if err != nil || len(body.Stocks) == 0 {
-		ar.logger.Debug("Failed to extract and validate body", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("error.products.checkStockInformation"), gecho.Send())
-		return
-	}
-
-	totalErrors := make(map[string]string)
-	for productID, newStock := range body.Stocks {
-		if _, err := ar.productService.UpdateProductStock(r.Context(), productID, newStock); err != nil {
-			ar.logger.Error("Failed to update product stock", gecho.Field("error", err), gecho.Field("product_id", productID))
-			totalErrors[productID] = err.Error()
-		}
-	}
-
-	if len(totalErrors) > 0 {
-		gecho.InternalServerError(w,
-			gecho.WithMessage("error.products.someStockFailedToUpdate"),
-			gecho.WithData(map[string]any{"errors": totalErrors}),
-			gecho.Send(),
-		)
-		return
-	}
-
-	gecho.Success(w, gecho.WithMessage("success.products.stockUpdated"), gecho.Send())
 }
