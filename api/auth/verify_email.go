@@ -16,7 +16,7 @@ func (ar *AuthRoutesManager) HandleVerifyEmail(w http.ResponseWriter, r *http.Re
 	userID := params.Get("user_id")
 
 	if token == "" || userID == "" {
-		gecho.BadRequest(w, gecho.WithMessage("Missing token or user_id"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("error.auth.missingTokenOrUserId"), gecho.Send())
 		return
 	}
 
@@ -24,7 +24,7 @@ func (ar *AuthRoutesManager) HandleVerifyEmail(w http.ResponseWriter, r *http.Re
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		ar.logger.Warn("Invalid user_id format", gecho.Field("error", err), gecho.Field("user_id", userID))
-		gecho.BadRequest(w, gecho.WithMessage("Invalid user_id format"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("error.auth.invalidUserIdFormat"), gecho.Send())
 		return
 	}
 

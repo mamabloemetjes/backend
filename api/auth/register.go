@@ -12,13 +12,13 @@ func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Reque
 	body, err := lib.ExtractAndValidateBody[structs.RegisterRequest](r)
 	if err != nil {
 		ar.logger.Warn("Failed to extract request body", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("Please check your registration information and try again"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("error.auth.checkRegistrationInformation"), gecho.Send())
 		return
 	}
 
 	if body.Email == "" || body.Password == "" || body.Username == "" {
 		ar.logger.Warn("Missing required fields in registration", gecho.Field("body", body))
-		gecho.BadRequest(w, gecho.WithMessage("Email, username, and password are required"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("error.auth.missingRequiredFields"), gecho.Send())
 		return
 	}
 
@@ -52,7 +52,7 @@ func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Reque
 	}()
 
 	gecho.Success(w,
-		gecho.WithMessage("User registered successfully"),
+		gecho.WithMessage("success.auth.userRegistered"),
 		gecho.Send(),
 	)
 }

@@ -12,7 +12,7 @@ func (ar *AuthRoutesManager) HandleLogout(w http.ResponseWriter, r *http.Request
 	accessToken, err := lib.GetCookieValue(lib.AccessCookieName, r)
 	if err != nil {
 		gecho.Success(w,
-			gecho.WithMessage("No access token found"),
+			gecho.WithMessage("error.auth.noAccessTokenFound"),
 			gecho.Send(),
 		)
 		return
@@ -22,7 +22,7 @@ func (ar *AuthRoutesManager) HandleLogout(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		ar.logger.Error("Failed to parse access token during logout", gecho.Field("error", err))
 		gecho.Success(w,
-			gecho.WithMessage("Invalid access token"),
+			gecho.WithMessage("error.auth.invalidAccessToken"),
 			gecho.Send(),
 		)
 		return
@@ -32,7 +32,7 @@ func (ar *AuthRoutesManager) HandleLogout(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		ar.logger.Error("Failed to blacklist access token during logout", gecho.Field("error", err))
 		gecho.InternalServerError(w,
-			gecho.WithMessage("Failed to logout"),
+			gecho.WithMessage("error.auth.failedToLogout"),
 			gecho.Send(),
 		)
 		return
@@ -53,7 +53,7 @@ func (ar *AuthRoutesManager) HandleLogout(w http.ResponseWriter, r *http.Request
 	// Blacklist the token
 
 	gecho.Success(w,
-		gecho.WithMessage("Logged out successfully"),
+		gecho.WithMessage("success.auth.loggedOut"),
 		gecho.Send(),
 	)
 }

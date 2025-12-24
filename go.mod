@@ -4,7 +4,7 @@ go 1.25.5
 
 require github.com/joho/godotenv v1.5.1 // direct
 
-require github.com/MonkyMars/gecho v0.6.1 // direct
+require github.com/MonkyMars/gecho v0.6.2 // direct
 
 require github.com/go-chi/chi/v5 v5.2.3 // direct
 

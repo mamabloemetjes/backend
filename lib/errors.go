@@ -86,21 +86,21 @@ func MapPgError(err error) error {
 	case "08000", "08003", "08006": // connection errors
 		return &DatabaseError{
 			Type:          "connection_error",
-			Message:       "Database connection error. Please try again.",
+			Message:       "error.database.connectionError",
 			Detail:        message,
 			OriginalError: err,
 		}
 	case "40001": // serialization_failure
 		return &DatabaseError{
 			Type:          "serialization_failure",
-			Message:       "Database operation conflict. Please try again.",
+			Message:       "error.database.serializationFailure",
 			Detail:        message,
 			OriginalError: err,
 		}
 	case "53300": // too_many_connections
 		return &DatabaseError{
 			Type:          "too_many_connections",
-			Message:       "Service is currently busy. Please try again in a moment.",
+			Message:       "error.database.tooManyConnections",
 			Detail:        message,
 			OriginalError: err,
 		}
@@ -108,7 +108,7 @@ func MapPgError(err error) error {
 		// Unknown PostgreSQL error
 		return &DatabaseError{
 			Type:          "unknown",
-			Message:       "A database error occurred. Please try again.",
+			Message:       "error.database.unknown",
 			Detail:        fmt.Sprintf("Code: %s, Message: %s", code, message),
 			OriginalError: err,
 		}
@@ -145,11 +145,11 @@ func handleForeignKeyViolation(detail, constraintName, tableName string, origina
 	// Determine if it's a deletion or insertion violation
 	var userMessage string
 	if strings.Contains(detail, "still referenced") {
-		userMessage = "Cannot delete this item because it is being used elsewhere."
+		userMessage = "error.foreignKeyViolation.delete"
 	} else if strings.Contains(detail, "not present") {
-		userMessage = "The referenced item does not exist."
+		userMessage = "error.foreignKeyViolation.notExists"
 	} else {
-		userMessage = "Database relationship constraint violated."
+		userMessage = "error.foreignKeyViolation.default"
 	}
 
 	return &DatabaseError{
@@ -164,7 +164,7 @@ func handleForeignKeyViolation(detail, constraintName, tableName string, origina
 
 // handleNotNullViolation processes NOT NULL constraint violations
 func handleNotNullViolation(message, tableName, columnName string, originalErr error) error {
-	userMessage := fmt.Sprintf("Required field '%s' cannot be empty.", humanizeColumnName(columnName))
+	userMessage := fmt.Sprintf("error.notNullViolation.default", humanizeColumnName(columnName))
 
 	return &DatabaseError{
 		Type:          "not_null_violation",
@@ -227,24 +227,24 @@ func extractFieldFromConstraint(constraint, detail string) string {
 func createUniqueViolationMessage(field, table string) string {
 	switch strings.ToLower(field) {
 	case "email":
-		return "An account with this email address already exists."
+		return "error.uniqueViolation.email"
 	case "username":
-		return "This username is already taken. Please choose a different one."
+		return "error.uniqueViolation.username"
 	case "sku":
-		return "A product with this SKU already exists."
+		return "error.uniqueViolation.sku"
 	case "token":
-		return "This token has already been used."
+		return "error.uniqueViolation.token"
 	case "phone":
-		return "This phone number is already registered."
+		return "error.uniqueViolation.phone"
 	case "url":
-		return "This URL is already in use."
+		return "error.uniqueViolation.url"
 	case "name":
 		if strings.Contains(strings.ToLower(table), "product") {
-			return "A product with this name already exists."
+			return "error.uniqueViolation.productName"
 		}
-		return "An item with this name already exists."
+		return "error.uniqueViolation.itemName"
 	default:
-		return fmt.Sprintf("This %s already exists. Please use a different value.", humanizeColumnName(field))
+		return fmt.Sprintf("error.uniqueViolation.default", humanizeColumnName(field))
 	}
 }
 
@@ -254,22 +254,22 @@ func createCheckViolationMessage(constraint string) string {
 
 	// Common check constraint patterns
 	if strings.Contains(lower, "email") && strings.Contains(lower, "format") {
-		return "Please provide a valid email address."
+		return "error.checkViolation.emailFormat"
 	}
 	if strings.Contains(lower, "username") && strings.Contains(lower, "length") {
-		return "Username must be between 3 and 50 characters."
+		return "error.checkViolation.usernameLength"
 	}
 	if strings.Contains(lower, "price") || strings.Contains(lower, "amount") {
-		return "Price or amount must be a positive value."
+		return "error.checkViolation.positiveValue"
 	}
 	if strings.Contains(lower, "stock") {
-		return "Stock quantity must be zero or greater."
+		return "error.checkViolation.stockQuantity"
 	}
 	if strings.Contains(lower, "expires") {
-		return "Expiration date must be in the future."
+		return "error.checkViolation.futureDate"
 	}
 
-	return "The provided value does not meet the required constraints."
+	return "error.checkViolation.default"
 }
 
 // humanizeColumnName converts a column name to a human-readable format
@@ -326,18 +326,18 @@ func GetUserMessage(err error) string {
 	// Check for known errors
 	switch {
 	case errors.Is(err, ErrInvalidCredentials):
-		return "Invalid email or password."
+		return "error.auth.invalidCredentials"
 	case errors.Is(err, ErrInvalidToken):
-		return "Invalid or expired token."
+		return "error.auth.invalidToken"
 	case errors.Is(err, ErrExpiredToken):
-		return "This link has expired. Please request a new one."
+		return "error.auth.expiredToken"
 	case errors.Is(err, ErrNotFound):
-		return "The requested item was not found."
+		return "error.notFound"
 	case errors.Is(err, ErrConflict):
-		return "This item already exists."
+		return "error.conflict"
 	default:
 		// Generic error message
-		return "An error occurred. Please try again."
+		return "error.generic"
 	}
 }
 

@@ -11,19 +11,19 @@ func (ar *AdminRoutesManager) ListAllProducts(w http.ResponseWriter, r *http.Req
 	opts, err := handling.ParseProductListOptions(r)
 	if err != nil {
 		ar.logger.Debug("Failed to parse product list options", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("Invalid query parameters"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("error.invalidQueryParameters"), gecho.Send())
 		return
 	}
 	products, err := ar.productService.GetAllProducts(r.Context(), opts)
 	if err != nil {
 		ar.logger.Error("Failed to list products", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("Failed to list products"), gecho.Send())
+		gecho.InternalServerError(w, gecho.WithMessage("error.products.failedToList"), gecho.Send())
 		return
 	}
 
 	gecho.Success(w,
 		gecho.WithData(products),
-		gecho.WithMessage("Products retrieved successfully"),
+		gecho.WithMessage("success.products.retrieved"),
 		gecho.Send(),
 	)
 }

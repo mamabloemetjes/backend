@@ -10,22 +10,22 @@ import (
 func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	productId := chi.URLParam(r, "id")
 	if productId == "" {
-		gecho.BadRequest(w, gecho.WithMessage("Please select a product to delete"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("error.products.selectProductToDelete"), gecho.Send())
 		return
 	}
 	total, err := ar.productService.DeleteProductByID(r.Context(), productId)
 	if err != nil {
 		ar.logger.Error("Failed to delete product", gecho.Field("error", err), gecho.Field("product_id", productId))
-		gecho.InternalServerError(w, gecho.WithMessage("Unable to delete product. Please try again"), gecho.Send())
+		gecho.InternalServerError(w, gecho.WithMessage("error.products.unableToDelete"), gecho.Send())
 		return
 	}
 	if total == 0 {
-		gecho.NotFound(w, gecho.WithMessage("Product not found"), gecho.Send())
+		gecho.NotFound(w, gecho.WithMessage("error.products.notFound"), gecho.Send())
 		return
 	}
 
 	gecho.Success(w,
-		gecho.WithMessage("Product deleted successfully"),
+		gecho.WithMessage("success.products.deleted"),
 		gecho.WithData(map[string]int{"deleted_count": total}),
 		gecho.Send(),
 	)

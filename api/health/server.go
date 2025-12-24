@@ -18,7 +18,7 @@ func (hrm *HealthRoutesManager) GetDatabaseHealth(w http.ResponseWriter, r *http
 	dbHealthStatus, err := hrm.healthService.GetDatabaseHealthStatus()
 	if err != nil {
 		gecho.InternalServerError(w,
-			gecho.WithMessage("Database health check failed"),
+			gecho.WithMessage("error.database.healthCheckFailed"),
 			gecho.Send(),
 		)
 		return

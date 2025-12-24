@@ -14,7 +14,7 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 	body, err := lib.ExtractAndValidateBody[tables.Product](r)
 	if err != nil {
 		ar.logger.Debug("Failed to extract and validate body", err)
-		gecho.BadRequest(w, gecho.WithMessage("Please check the product information and try again"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("error.products.checkProductInformation"), gecho.Send())
 		return
 	}
 
@@ -44,13 +44,13 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 	newProduct, err := ar.productService.CreateProduct(r.Context(), body)
 	if err != nil {
 		ar.logger.Error("Failed to create product", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("Unable to create product. Please try again"), gecho.Send())
+		gecho.InternalServerError(w, gecho.WithMessage("error.products.unableToCreate"), gecho.Send())
 		return
 	}
 
 	gecho.Success(w,
 		gecho.WithData(newProduct),
-		gecho.WithMessage("Product created successfully"),
+		gecho.WithMessage("success.products.created"),
 		gecho.Send(),
 	)
 }

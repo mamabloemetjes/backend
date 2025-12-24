@@ -24,7 +24,7 @@ func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 		claims, err := lib.ExtractClaims(r, mw.authService.GetAccessTokenSecret())
 		if err != nil {
 			mw.logger.Warn("Failed to extract claims from request", gecho.Field("error", err))
-			gecho.Unauthorized(w, gecho.WithMessage("Invalid or missing access token"), gecho.Send())
+			gecho.Unauthorized(w, gecho.WithMessage("error.auth.invalidOrMissingAccessToken"), gecho.Send())
 			return
 		}
 
@@ -32,7 +32,7 @@ func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 		isRevoked, err := mw.cacheService.IsTokenBlacklisted(claims.Jti)
 		if err != nil {
 			mw.logger.Error("Failed to check if token is revoked", gecho.Field("error", err))
-			gecho.InternalServerError(w, gecho.WithMessage("Internal server error"), gecho.Send())
+			gecho.InternalServerError(w, gecho.WithMessage("error.internalServerError"), gecho.Send())
 			return
 		}
 		if isRevoked {
@@ -45,7 +45,7 @@ func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 				mw.logger.Debug("User cache revoked for revoked token", gecho.Field("user_id", claims.Sub))
 			}
 
-			gecho.Unauthorized(w, gecho.WithMessage("Access token has been revoked"), gecho.Send())
+			gecho.Unauthorized(w, gecho.WithMessage("error.auth.accessTokenRevoked"), gecho.Send())
 			return
 		}
 
@@ -65,14 +65,14 @@ func (mw *Middleware) AdminAuthMiddleware(next http.Handler) http.Handler {
 		claims, err := lib.ExtractClaims(r, mw.authService.GetAccessTokenSecret())
 		if err != nil {
 			mw.logger.Warn("Failed to extract claims from request", gecho.Field("error", err))
-			gecho.Forbidden(w, gecho.WithMessage("Access denied"), gecho.Send())
+			gecho.Forbidden(w, gecho.WithMessage("error.auth.accessDenied"), gecho.Send())
 			return
 		}
 
 		// Check if user has admin role
 		if claims.Role != "admin" {
 			mw.logger.Warn("Non-admin user attempted to access admin route", gecho.Field("user_id", claims.Sub), gecho.Field("role", claims.Role))
-			gecho.Forbidden(w, gecho.WithMessage("Admin access required"), gecho.Send())
+			gecho.Forbidden(w, gecho.WithMessage("error.auth.adminAccessRequired"), gecho.Send())
 			return
 		}
 

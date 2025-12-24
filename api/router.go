@@ -38,7 +38,7 @@ func App(
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		gecho.Success(w,
-			gecho.WithMessage("Welcome to the Mamabloemetjes API"),
+			gecho.WithMessage("success.api.welcome"),
 			gecho.Send(),
 		)
 	})

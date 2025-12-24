@@ -15,7 +15,7 @@ func (ar *AuthRoutesManager) HandleCSRF(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		ar.logger.Error("Failed to generate CSRF token", gecho.Field("error", err))
 		gecho.InternalServerError(w,
-			gecho.WithMessage("Failed to generate CSRF token"),
+			gecho.WithMessage("error.csrf.failedToGenerate"),
 			gecho.Send(),
 		)
 		return
@@ -33,7 +33,7 @@ func (ar *AuthRoutesManager) HandleCSRF(w http.ResponseWriter, r *http.Request) 
 
 	// Return the token in the response as well
 	gecho.Success(w,
-		gecho.WithMessage("CSRF token generated"),
+		gecho.WithMessage("success.csrf.generated"),
 		gecho.WithData(map[string]string{
 			"csrf_token": token,
 		}),

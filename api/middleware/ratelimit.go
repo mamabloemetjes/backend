@@ -136,8 +136,11 @@ func (mw *Middleware) RateLimitMiddleware() func(http.Handler) http.Handler {
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(window.Seconds())))
 				w.Header().Set("Content-Type", "application/json")
 
-				http.Error(w, fmt.Sprintf(`{"message":"Rate limit exceeded. Please try again later.","data":{"limit":%d,"window":"%s","retry_after":%d}}`,
-					limit, window.String(), int(window.Seconds())), http.StatusTooManyRequests)
+				gecho.TooManyRequests(w,
+					gecho.WithMessage("error.rateLimitExceeded"),
+					gecho.WithData(map[string]any{"limit": limit, "window": window.String(), "retry_after": int(window.Seconds())}),
+					gecho.Send(),
+				)
 				return
 			}
 
@@ -182,7 +185,7 @@ func (mw *Middleware) StrictRateLimitMiddleware(limit int, window time.Duration)
 				)
 
 				gecho.ServiceUnavailable(w,
-					gecho.WithMessage("Service temporarily unavailable"),
+					gecho.WithMessage("error.serviceUnavailable"),
 					gecho.Send(),
 				)
 				return
@@ -201,7 +204,7 @@ func (mw *Middleware) StrictRateLimitMiddleware(limit int, window time.Duration)
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(window.Seconds())))
 				w.Header().Set("Content-Type", "application/json")
 
-				http.Error(w, `{"message":"Rate limit exceeded"}`, http.StatusTooManyRequests)
+				gecho.TooManyRequests(w, gecho.WithMessage("error.rateLimitExceeded.strict"), gecho.Send())
 				return
 			}
 

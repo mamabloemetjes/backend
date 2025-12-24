@@ -37,7 +37,7 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 	body, err := lib.ExtractAndValidateBody[UpdateProductsRequest](r)
 	if err != nil || len(body.Products) == 0 {
 		ar.logger.Debug("Failed to extract and validate body", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("Please check the product information and try again"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("error.products.checkProductInformation"), gecho.Send())
 		return
 	}
 
@@ -46,7 +46,7 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 		productUUID, parseErr := uuid.Parse(productID)
 		if parseErr != nil {
 			ar.logger.Error("Invalid product ID format", gecho.Field("error", parseErr), gecho.Field("product_id", productID))
-			totalErrors[productID] = "invalid product ID format"
+			totalErrors[productID] = "error.products.invalidIdFormat"
 			continue
 		}
 
@@ -74,21 +74,21 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 
 	if len(totalErrors) > 0 {
 		gecho.InternalServerError(w,
-			gecho.WithMessage("Some products failed to update"),
+			gecho.WithMessage("error.products.someFailedToUpdate"),
 			gecho.WithData(map[string]any{"errors": totalErrors}),
 			gecho.Send(),
 		)
 		return
 	}
 
-	gecho.Success(w, gecho.WithMessage("Products updated successfully"), gecho.Send())
+	gecho.Success(w, gecho.WithMessage("success.products.updated"), gecho.Send())
 }
 
 func (ar *AdminRoutesManager) UpdateProductsStock(w http.ResponseWriter, r *http.Request) {
 	body, err := lib.ExtractAndValidateBody[UpdateProductsStockRequest](r)
 	if err != nil || len(body.Stocks) == 0 {
 		ar.logger.Debug("Failed to extract and validate body", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("Please check the stock information and try again"), gecho.Send())
+		gecho.BadRequest(w, gecho.WithMessage("error.products.checkStockInformation"), gecho.Send())
 		return
 	}
 
@@ -102,12 +102,12 @@ func (ar *AdminRoutesManager) UpdateProductsStock(w http.ResponseWriter, r *http
 
 	if len(totalErrors) > 0 {
 		gecho.InternalServerError(w,
-			gecho.WithMessage("Some product stocks failed to update"),
+			gecho.WithMessage("error.products.someStockFailedToUpdate"),
 			gecho.WithData(map[string]any{"errors": totalErrors}),
 			gecho.Send(),
 		)
 		return
 	}
 
-	gecho.Success(w, gecho.WithMessage("Product stocks updated successfully"), gecho.Send())
+	gecho.Success(w, gecho.WithMessage("success.products.stockUpdated"), gecho.Send())
 }

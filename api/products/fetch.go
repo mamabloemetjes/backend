@@ -18,7 +18,7 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 	if err != nil {
 		p.logger.Warn("Invalid query parameters", "error", err)
 		gecho.BadRequest(w,
-			gecho.WithMessage("Invalid query parameters"),
+			gecho.WithMessage("error.invalidQueryParameters"),
 			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
@@ -37,7 +37,7 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 	if err != nil {
 		p.logger.Error("Failed to fetch products", "error", err)
 		gecho.InternalServerError(w,
-			gecho.WithMessage("Failed to fetch products"),
+			gecho.WithMessage("error.products.failedToFetch"),
 			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
@@ -69,7 +69,7 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 	if id == "" {
 		p.logger.Warn("Product ID not provided")
 		gecho.BadRequest(w,
-			gecho.WithMessage("Product ID is required"),
+			gecho.WithMessage("error.products.productIdRequired"),
 			gecho.Send(),
 		)
 		return
@@ -85,7 +85,7 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 	if err != nil {
 		if err.Error() == "product not found" {
 			gecho.NotFound(w,
-				gecho.WithMessage("Product not found"),
+				gecho.WithMessage("error.products.notFound"),
 				gecho.Send(),
 			)
 			return
@@ -93,7 +93,7 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 
 		p.logger.Error("Failed to fetch product by ID", "id", id, "error", err)
 		gecho.InternalServerError(w,
-			gecho.WithMessage("Failed to fetch product"),
+			gecho.WithMessage("error.products.failedToFetchOne"),
 			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
@@ -137,7 +137,7 @@ func (p *ProductRoutesManager) FetchActiveProducts(w http.ResponseWriter, r *htt
 	if err != nil {
 		p.logger.Error("Failed to fetch active products", "error", err)
 		gecho.InternalServerError(w,
-			gecho.WithMessage("Failed to fetch active products"),
+			gecho.WithMessage("error.products.failedToFetchActive"),
 			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
@@ -168,7 +168,7 @@ func (p *ProductRoutesManager) GetProductCount(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		p.logger.Warn("Invalid query parameters", "error", err)
 		gecho.BadRequest(w,
-			gecho.WithMessage("Invalid query parameters"),
+			gecho.WithMessage("error.invalidQueryParameters"),
 			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
@@ -180,7 +180,7 @@ func (p *ProductRoutesManager) GetProductCount(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		p.logger.Error("Failed to count products", "error", err)
 		gecho.InternalServerError(w,
-			gecho.WithMessage("Failed to count products"),
+			gecho.WithMessage("error.products.failedToCount"),
 			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
