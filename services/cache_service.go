@@ -239,7 +239,6 @@ func (cs *CacheService) IsTokenBlacklisted(jti uuid.UUID) (bool, error) {
 
 // Get UserFromCache retrieves a user object from cache using userID
 func (cs *CacheService) GetUserFromCache(userID uuid.UUID) (*tables.User, error) {
-	cs.logger.Debug("Retrieving user from cache", "user_id", userID)
 	key := fmt.Sprintf("user:%s", userID.String())
 	val, err := cs.Get(key)
 	if err != nil {
@@ -265,7 +264,6 @@ func (cs *CacheService) SetUserInCache(user *tables.User) error {
 		// Nothing to cache
 		return nil
 	}
-	cs.logger.Debug("Caching user", "user_id", user.Id)
 	key := fmt.Sprintf("user:%s", user.Id.String())
 	data, err := json.Marshal(user)
 	if err != nil {
@@ -400,7 +398,6 @@ func (cs *CacheService) GetRateLimitStatus(ip, endpoint string) (map[string]any,
 // GetActiveProductsList retrieves cached active products list
 func (cs *CacheService) GetActiveProductsList(page, pageSize int, includeImages bool) ([]tables.Product, error) {
 	key := fmt.Sprintf("products:active:page:%d:size:%d:images:%v", page, pageSize, includeImages)
-	cs.logger.Debug("Retrieving active products from cache", "key", key)
 
 	products, err := getJSON[[]tables.Product](cs, key)
 	if err != nil {
@@ -409,11 +406,9 @@ func (cs *CacheService) GetActiveProductsList(page, pageSize int, includeImages 
 	}
 
 	if products == nil {
-		cs.logger.Debug("Active products cache miss", "key", key)
 		return nil, nil
 	}
 
-	cs.logger.Debug("Active products cache hit", "key", key, "count", len(*products))
 	return *products, nil
 }
 
@@ -422,15 +417,12 @@ func (cs *CacheService) SetActiveProductsList(page, pageSize int, includeImages 
 	key := fmt.Sprintf("products:active:page:%d:size:%d:images:%v", page, pageSize, includeImages)
 	ttl := cs.getProductListTTL()
 
-	cs.logger.Debug("Caching active products", "key", key, "count", len(products), "ttl", ttl)
-
 	return setJSON(cs, key, products, ttl)
 }
 
 // GetProductBySKU retrieves a cached product by SKU
 func (cs *CacheService) GetProductBySKU(sku string) (*tables.Product, error) {
 	key := fmt.Sprintf("product:sku:%s", sku)
-	cs.logger.Debug("Retrieving product from cache", "sku", sku)
 
 	product, err := getJSON[tables.Product](cs, key)
 	if err != nil {
@@ -439,11 +431,9 @@ func (cs *CacheService) GetProductBySKU(sku string) (*tables.Product, error) {
 	}
 
 	if product == nil {
-		cs.logger.Debug("Product cache miss", "sku", sku)
 		return nil, nil
 	}
 
-	cs.logger.Debug("Product cache hit", "sku", sku)
 	return product, nil
 }
 
@@ -460,7 +450,6 @@ func (cs *CacheService) SetProductBySKU(product *tables.Product) error {
 // GetProductByID retrieves a cached product by ID
 func (cs *CacheService) GetProductByID(id string, includeImages bool) (*tables.Product, error) {
 	key := fmt.Sprintf("product:id:%s:images:%v", id, includeImages)
-	cs.logger.Debug("Retrieving product from cache", "id", id)
 
 	product, err := getJSON[tables.Product](cs, key)
 	if err != nil {
@@ -469,11 +458,9 @@ func (cs *CacheService) GetProductByID(id string, includeImages bool) (*tables.P
 	}
 
 	if product == nil {
-		cs.logger.Debug("Product cache miss", "id", id)
 		return nil, nil
 	}
 
-	cs.logger.Debug("Product cache hit", "id", id)
 	return product, nil
 }
 
@@ -482,15 +469,12 @@ func (cs *CacheService) SetProductByID(product *tables.Product, includeImages bo
 	key := fmt.Sprintf("product:id:%s:images:%v", product.ID.String(), includeImages)
 	ttl := cs.getProductListTTL()
 
-	cs.logger.Debug("Caching product by ID", "id", product.ID, "ttl", ttl)
-
 	return setJSON(cs, key, product, ttl)
 }
 
 // GetProductCount retrieves cached product count
 func (cs *CacheService) GetProductCount(filterKey string) (*int, error) {
 	key := fmt.Sprintf("products:count:%s", filterKey)
-	cs.logger.Debug("Retrieving product count from cache", "key", key)
 
 	count, err := getJSON[int](cs, key)
 	if err != nil {
@@ -499,11 +483,9 @@ func (cs *CacheService) GetProductCount(filterKey string) (*int, error) {
 	}
 
 	if count == nil {
-		cs.logger.Debug("Product count cache miss", "key", key)
 		return nil, nil
 	}
 
-	cs.logger.Debug("Product count cache hit", "key", key, "count", *count)
 	return count, nil
 }
 
@@ -511,8 +493,6 @@ func (cs *CacheService) GetProductCount(filterKey string) (*int, error) {
 func (cs *CacheService) SetProductCount(filterKey string, count int) error {
 	key := fmt.Sprintf("products:count:%s", filterKey)
 	ttl := cs.getProductCountTTL()
-
-	cs.logger.Debug("Caching product count", "key", key, "count", count, "ttl", ttl)
 
 	return setJSON(cs, key, count, ttl)
 }
@@ -524,7 +504,6 @@ func (cs *CacheService) SetProductCount(filterKey string, count int) error {
 // InvalidateUserCache removes a user from cache
 func (cs *CacheService) InvalidateUserCache(userID uuid.UUID) error {
 	key := fmt.Sprintf("user:%s", userID.String())
-	cs.logger.Debug("Invalidating user cache", "user_id", userID)
 	return cs.Delete(key)
 }
 
@@ -559,7 +538,6 @@ func (cs *CacheService) InvalidateProductCaches(productID uuid.UUID) error {
 // InvalidateProductCacheBySKU removes a specific product cache by SKU
 func (cs *CacheService) InvalidateProductCacheBySKU(sku string) error {
 	key := fmt.Sprintf("product:sku:%s", sku)
-	cs.logger.Debug("Invalidating product cache by SKU", "sku", sku)
 	return cs.Delete(key)
 }
 
@@ -586,8 +564,6 @@ func (cs *CacheService) InvalidateAllProductCaches() error {
 
 // DeletePattern removes all keys matching a pattern using SCAN
 func (cs *CacheService) DeletePattern(pattern string) error {
-	cs.logger.Debug("Deleting cache pattern", "pattern", pattern)
-
 	return cs.withRetry(func() error {
 		var cursor uint64
 		deletedCount := 0
@@ -611,8 +587,13 @@ func (cs *CacheService) DeletePattern(pattern string) error {
 			}
 		}
 
-		cs.logger.Debug("Pattern deletion complete", "pattern", pattern, "deleted_count", deletedCount)
 		return nil
+	}, 3)
+}
+
+func (cs *CacheService) ClearAll() error {
+	return cs.withRetry(func() error {
+		return cs.client.FlushDB(redisCtx).Err()
 	}, 3)
 }
 

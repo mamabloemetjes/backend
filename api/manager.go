@@ -3,6 +3,7 @@ package api
 import (
 	"mamabloemetjes_server/api/admin"
 	"mamabloemetjes_server/api/auth"
+	"mamabloemetjes_server/api/debug"
 	"mamabloemetjes_server/api/health"
 	"mamabloemetjes_server/api/products"
 
@@ -14,6 +15,7 @@ type routerManager struct {
 	healthRoutes  *health.HealthRoutesManager
 	authRoutes    *auth.AuthRoutesManager
 	adminRoutes   *admin.AdminRoutesManager
+	debugRoutes   *debug.DebugRoutesManager
 }
 
 func NewRouterManager(
@@ -21,12 +23,14 @@ func NewRouterManager(
 	healthRoutes *health.HealthRoutesManager,
 	authRoutes *auth.AuthRoutesManager,
 	adminRoutes *admin.AdminRoutesManager,
+	debugRoutes *debug.DebugRoutesManager,
 ) *routerManager {
 	return &routerManager{
 		productRoutes: productRoutes,
 		healthRoutes:  healthRoutes,
 		authRoutes:    authRoutes,
 		adminRoutes:   adminRoutes,
+		debugRoutes:   debugRoutes,
 	}
 }
 
@@ -35,4 +39,5 @@ func (rm *routerManager) RegisterRoutes(r chi.Router) {
 	rm.healthRoutes.RegisterRoutes(r)
 	rm.authRoutes.RegisterRoutes(r)
 	rm.adminRoutes.RegisterRoutes(r)
+	rm.debugRoutes.RegisterRoutes(r)
 }

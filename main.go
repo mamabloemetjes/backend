@@ -7,6 +7,7 @@ import (
 	"mamabloemetjes_server/api"
 	"mamabloemetjes_server/api/admin"
 	"mamabloemetjes_server/api/auth"
+	"mamabloemetjes_server/api/debug"
 	"mamabloemetjes_server/api/health"
 	"mamabloemetjes_server/api/middleware"
 	"mamabloemetjes_server/api/products"
@@ -70,9 +71,10 @@ func run() error {
 	productRoutes := products.NewProductRoutesManager(logger, serviceManager.ProductService, serviceManager.EmailService)
 	authRoutes := auth.NewAuthRoutesManager(logger, serviceManager.AuthService, serviceManager.EmailService, serviceManager.CacheService, cfg, mw)
 	adminRoutes := admin.NewAdminRoutesManager(logger, serviceManager.ProductService, mw)
+	debugRoutes := debug.NewDebugRoutesManager(serviceManager.CacheService)
 
 	// Initialize main router manager
-	routerManager := api.NewRouterManager(productRoutes, healthRoutes, authRoutes, adminRoutes)
+	routerManager := api.NewRouterManager(productRoutes, healthRoutes, authRoutes, adminRoutes, debugRoutes)
 
 	// Setup router
 	r := api.App(routerManager, mw, cfg)

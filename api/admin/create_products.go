@@ -16,6 +16,14 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	body.SKU, err = lib.GenerateSKU(body.Name, 5)
+	ar.logger.Debug("Generated SKU", gecho.Field("sku", body.SKU))
+	if err != nil {
+		ar.logger.Error("Failed to generate SKU", gecho.Field("error", err))
+		gecho.InternalServerError(w, gecho.WithMessage("error.products.unableToCreate"), gecho.Send())
+		return
+	}
+
 	// Debug log to check if images are received
 	ar.logger.Debug("CreateProduct request received",
 		gecho.Field("product_name", body.Name),

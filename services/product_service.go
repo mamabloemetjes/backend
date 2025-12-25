@@ -271,10 +271,6 @@ func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, 
 		return nil, fmt.Errorf("failed to fetch products by SKUs: %w", err)
 	}
 
-	ps.logger.Debug("Products fetched by SKUs",
-		gecho.Field("count", len(products)),
-		gecho.Field("duration", time.Since(startTime)),
-	)
 	return products, nil
 }
 

@@ -78,8 +78,6 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 	// Check if images should be included
 	includeImages := r.URL.Query().Get("include_images") == "true"
 
-	p.logger.Debug("Fetching product by ID", "id", id, "includeImages", includeImages)
-
 	// Fetch product using the service
 	product, err := p.productService.GetProductByID(ctx, id, includeImages)
 	if err != nil {
