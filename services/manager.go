@@ -13,6 +13,7 @@ type ServiceManager struct {
 	CacheService   *CacheService
 	HealthService  *HealthService
 	ProductService *ProductService
+	OrderService   *OrderService
 }
 
 func NewServiceManager(logger *gecho.Logger, cfg *structs.Config, db *database.DB) *ServiceManager {
@@ -21,6 +22,7 @@ func NewServiceManager(logger *gecho.Logger, cfg *structs.Config, db *database.D
 	emailService := NewEmailService(logger, cfg, db)
 	healthService := NewHealthService(logger, db)
 	productService := NewProductService(logger, db, cacheService)
+	orderService := NewOrderService(logger, cfg, db, productService)
 
 	return &ServiceManager{
 		AuthService:    authService,
@@ -28,5 +30,6 @@ func NewServiceManager(logger *gecho.Logger, cfg *structs.Config, db *database.D
 		CacheService:   cacheService,
 		HealthService:  healthService,
 		ProductService: productService,
+		OrderService:   orderService,
 	}
 }

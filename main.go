@@ -10,6 +10,7 @@ import (
 	"mamabloemetjes_server/api/debug"
 	"mamabloemetjes_server/api/health"
 	"mamabloemetjes_server/api/middleware"
+	"mamabloemetjes_server/api/orders"
 	"mamabloemetjes_server/api/products"
 	"mamabloemetjes_server/config"
 	"mamabloemetjes_server/database"
@@ -71,10 +72,11 @@ func run() error {
 	productRoutes := products.NewProductRoutesManager(logger, serviceManager.ProductService, serviceManager.EmailService)
 	authRoutes := auth.NewAuthRoutesManager(logger, serviceManager.AuthService, serviceManager.EmailService, serviceManager.CacheService, cfg, mw)
 	adminRoutes := admin.NewAdminRoutesManager(logger, serviceManager.ProductService, mw)
+	ordersRoutes := orders.NewOrderRoutesManager(serviceManager.ProductService, serviceManager.OrderService)
 	debugRoutes := debug.NewDebugRoutesManager(serviceManager.CacheService)
 
 	// Initialize main router manager
-	routerManager := api.NewRouterManager(productRoutes, healthRoutes, authRoutes, adminRoutes, debugRoutes)
+	routerManager := api.NewRouterManager(productRoutes, healthRoutes, authRoutes, adminRoutes, ordersRoutes, debugRoutes)
 
 	// Setup router
 	r := api.App(routerManager, mw, cfg)
@@ -127,22 +129,23 @@ func run() error {
 	var closeErr error
 
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
+
+	wg.Go(func() {
 		logger.Info("Closing database connection")
 		if err := db.Close(); err != nil {
 			closeErr = errors.Join(closeErr, fmt.Errorf("failed to close database: %w", err))
 		}
-	}()
+		defer wg.Done()
+	})
 
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		logger.Info("Closing cache connection")
 		if err := serviceManager.CacheService.Close(); err != nil {
 			closeErr = errors.Join(closeErr, fmt.Errorf("failed to close cache: %w", err))
 		}
-	}()
+		defer wg.Done()
+	})
 
 	wg.Wait()
 

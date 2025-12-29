@@ -169,7 +169,7 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 		gecho.Field("has_images", len(product.Images) > 0),
 	)
 
-	if &product == nil {
+	if product == nil {
 		ps.logger.Warn("Product not found", gecho.Field("id", id))
 		return nil, fmt.Errorf("product not found")
 	}
@@ -210,7 +210,7 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 			Pagination: database.Pagination{
 				Page:     page,
 				PageSize: pageSize,
-				Total:    len(cachedProducts), // This is approximate - real total would need separate query/cache
+				Total:    len(cachedProducts),
 			},
 			Filters: ProductListOptions{
 				Page:          page,
