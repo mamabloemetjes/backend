@@ -76,10 +76,10 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 	}
 
 	// Check if images should be included
-	includeImages := r.URL.Query().Get("include_images") == "true"
+	// includeImages := r.URL.Query().Get("include_images") == "true"
 
 	// Fetch product using the service
-	product, err := p.productService.GetProductByID(ctx, id, includeImages)
+	product, err := p.productService.GetProductByID(ctx, id, true)
 	if err != nil {
 		if err.Error() == "product not found" {
 			gecho.NotFound(w,

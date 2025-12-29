@@ -147,11 +147,12 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 		Where("id", id).
 		Timeout(5 * time.Second)
 
-	if includeImages {
-		query = query.Relation("Images")
-	}
+	query = query.Relation("Images", func(q *bun.SelectQuery) *bun.SelectQuery {
+		return q.OrderExpr("is_primary DESC")
+	})
 
 	product, err := query.First(ctx)
+
 	if err != nil {
 		ps.logger.Error("Failed to fetch product by ID",
 			gecho.Field("id", id),
@@ -161,7 +162,14 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 		return nil, fmt.Errorf("failed to fetch product: %w", err)
 	}
 
-	if product == nil {
+	ps.logger.Debug("Product fetched from database",
+		gecho.Field("id", id),
+		gecho.Field("duration", time.Since(startTime)),
+		gecho.Field("include_images", includeImages),
+		gecho.Field("has_images", len(product.Images) > 0),
+	)
+
+	if &product == nil {
 		ps.logger.Warn("Product not found", gecho.Field("id", id))
 		return nil, fmt.Errorf("product not found")
 	}

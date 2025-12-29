@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/uptrace/bun"
@@ -54,15 +53,22 @@ func (q *QueryBuilder[T]) First(ctx context.Context) (*T, error) {
 	}
 
 	err := WithRetry(ctx, func() error {
-		query := q.buildBunQuery().Limit(1)
+		// Reset data on retry
+		data = *new(T)
+
+		// When relations are being preloaded, we need to use Model() with the slice
+		// This is required for has-many and many-to-many relationships
+		if len(q.relations) > 0 {
+			query := q.buildBunQueryWithModel(&data).Limit(1)
+			return query.Scan(ctx)
+		}
+
+		// No relations, use the regular buildBunQuery approach
+		query := q.buildBunQuery()
 		return query.Scan(ctx, &data)
 	})
 
 	if err != nil {
-		// Return nil for no rows instead of error
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return nil, err
 	}
