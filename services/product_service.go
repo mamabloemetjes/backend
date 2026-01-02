@@ -247,6 +247,43 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 	return result, nil
 }
 
+// GetProductsByIds retrieves multiple products by their IDs
+func (ps *ProductService) GetProductsByIds(ctx context.Context, ids []uuid.UUID) ([]*tables.Product, error) {
+	startTime := time.Now()
+
+	if len(ids) == 0 {
+		return []*tables.Product{}, nil
+	}
+
+	// Convert IDs to interface slice
+	idInterfaces := make([]any, len(ids))
+	for i, id := range ids {
+		idInterfaces[i] = id
+	}
+
+	query := database.Query[tables.Product](ps.db).
+		WhereIn("id", idInterfaces).
+		Timeout(10 * time.Second)
+
+	products, err := query.All(ctx)
+	if err != nil {
+		ps.logger.Error("Failed to fetch products by IDs",
+			gecho.Field("ids", ids),
+			gecho.Field("error", err),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+		return nil, fmt.Errorf("failed to fetch products by IDs: %w", err)
+	}
+
+	// Convert slice to pointer slice
+	result := make([]*tables.Product, len(products))
+	for i := range products {
+		result[i] = &products[i]
+	}
+
+	return result, nil
+}
+
 // GetProductsBySKUs retrieves multiple products by their SKUs
 func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, includeImages bool) ([]tables.Product, error) {
 	startTime := time.Now()

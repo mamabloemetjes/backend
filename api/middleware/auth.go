@@ -21,7 +21,7 @@ const (
 // UserAuthMiddleware protects routes to only logged-in users
 func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, err := lib.ExtractClaims(r, mw.authService.GetAccessTokenSecret())
+		claims, err := lib.ExtractClaims(r)
 		if err != nil {
 			mw.logger.Warn("Failed to extract claims from request", gecho.Field("error", err))
 			gecho.Unauthorized(w, gecho.WithMessage("error.auth.invalidOrMissingAccessToken"), gecho.Send())
@@ -62,7 +62,7 @@ func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 func (mw *Middleware) AdminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get claims from context
-		claims, err := lib.ExtractClaims(r, mw.authService.GetAccessTokenSecret())
+		claims, err := lib.ExtractClaims(r)
 		if err != nil {
 			mw.logger.Warn("Failed to extract claims from request", gecho.Field("error", err))
 			gecho.Forbidden(w, gecho.WithMessage("error.auth.accessDenied"), gecho.Send())

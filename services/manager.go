@@ -22,7 +22,7 @@ func NewServiceManager(logger *gecho.Logger, cfg *structs.Config, db *database.D
 	emailService := NewEmailService(logger, cfg, db)
 	healthService := NewHealthService(logger, db)
 	productService := NewProductService(logger, db, cacheService)
-	orderService := NewOrderService(logger, cfg, db, productService)
+	orderService := NewOrderService(logger, cfg, db, productService, emailService)
 
 	return &ServiceManager{
 		AuthService:    authService,

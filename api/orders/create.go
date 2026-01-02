@@ -3,7 +3,6 @@ package orders
 import (
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs"
-	"mamabloemetjes_server/structs/tables"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
@@ -21,58 +20,36 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if body.Email == "" || body.Name == "" || len(body.Products) == 0 {
-		gecho.BadRequest(w,
-			gecho.WithMessage("error.order.missingFields"),
-			gecho.Send(),
-		)
-		return
+	// Default country to NL if not provided
+	if body.Country == "" {
+		body.Country = "NL"
 	}
 
-	orderNum := orm.orderService.GenerateOrderNumber()
-
-	orderId := uuid.New()
-
-	order := &tables.Order{
-		Id:          orderId,
-		Email:       body.Email,
-		Name:        body.Name,
-		OrderNumber: orderNum,
+	// Check if user is authenticated (optional - for linking orders to user accounts)
+	var userId *uuid.UUID
+	if claims, err := lib.ExtractClaims(r); err == nil {
+		userId = &claims.Sub
 	}
 
-	err = orm.orderService.CreateOrder(r.Context(), order)
+	// Create order using service (handles validation, pricing snapshots, email sending)
+	order, err := orm.orderService.CreateOrderFromRequest(r.Context(), body, userId)
 	if err != nil {
-		gecho.InternalServerError(w,
-			gecho.WithMessage("error.order.creatingOrder"),
-			gecho.WithData(err),
-			gecho.Send(),
-		)
-		return
-	}
-
-	orderLines := make([]*tables.OrderLine, len(body.Products))
-	for id, quantity := range body.Products {
-		uuid, err := uuid.Parse(id)
-		if err != nil {
+		// Check for specific business logic errors
+		errMsg := err.Error()
+		if errMsg == "product not found" ||
+			errMsg == "product is no longer available" ||
+			len(errMsg) > 0 && errMsg[:7] == "product" {
 			gecho.BadRequest(w,
-				gecho.WithMessage("error.order.invalidProductID"),
-				gecho.WithData(err),
+				gecho.WithMessage("error.order.productUnavailable"),
+				gecho.WithData(map[string]string{"error": err.Error()}),
 				gecho.Send(),
 			)
 			return
 		}
-		orderLines = append(orderLines, &tables.OrderLine{
-			OrderId:   orderId,
-			ProductId: uuid,
-			Quantity:  quantity,
-		})
-	}
 
-	err = orm.orderService.CreateOrderLines(r.Context(), orderLines)
-	if err != nil {
 		gecho.InternalServerError(w,
-			gecho.WithMessage("error.order.creatingOrderLines"),
-			gecho.WithData(err),
+			gecho.WithMessage("error.order.creationFailed"),
+			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -80,8 +57,10 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 
 	gecho.Success(w,
 		gecho.WithMessage("success.order.created"),
-		gecho.WithData(map[string]string{
-			"order_number": orderNum,
+		gecho.WithData(map[string]any{
+			"order_number": order.OrderNumber,
+			"order_id":     order.Id,
+			"status":       order.Status,
 		}),
 		gecho.Send(),
 	)

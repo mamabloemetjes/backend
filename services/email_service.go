@@ -118,3 +118,185 @@ func (es *EmailService) SendVerificationEmail(user *tables.User) (*tables.EmailV
 
 	return result, err
 }
+
+// SendOrderConfirmationEmail sends a bilingual order confirmation email
+func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber string, orderLines []*tables.OrderLine, address *tables.Address) error {
+	// Calculate total
+	var total uint64
+	for _, line := range orderLines {
+		total += line.LineTotal
+	}
+
+	// Format total as currency
+	totalFormatted := fmt.Sprintf("€%.2f", float64(total)/100)
+
+	// Build order items list
+	itemsListNL := ""
+	itemsListEN := ""
+	for _, line := range orderLines {
+		lineTotal := fmt.Sprintf("€%.2f", float64(line.LineTotal)/100)
+		itemsListNL += fmt.Sprintf("<li>%dx %s - %s</li>", line.Quantity, line.ProductName, lineTotal)
+		itemsListEN += fmt.Sprintf("<li>%dx %s - %s</li>", line.Quantity, line.ProductName, lineTotal)
+	}
+
+	// Format address
+	addressFormatted := fmt.Sprintf("%s %s<br>%s %s<br>%s",
+		address.Street, address.HouseNo, address.PostalCode, address.City, address.Country)
+
+	emailBody := fmt.Sprintf(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+			<style>
+				body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+				.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+				.header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
+				.content { padding: 20px; background-color: #f9f9f9; }
+				.order-details { background-color: white; padding: 15px; margin: 15px 0; border-radius: 5px; }
+				.footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+				ul { list-style-type: none; padding: 0; }
+				li { padding: 5px 0; border-bottom: 1px solid #eee; }
+				.divider { margin: 30px 0; border-top: 2px solid #ddd; }
+			</style>
+		</head>
+		<body>
+			<div class="container">
+				<!-- Dutch Version -->
+				<div class="header">
+					<h1>Bedankt voor je bestelling!</h1>
+				</div>
+				<div class="content">
+					<p>Beste %s,</p>
+					<p>We hebben je bestelling goed ontvangen. Hieronder vind je de details van je bestelling.</p>
+
+					<div class="order-details">
+						<h3>Bestelnummer: <strong>%s</strong></h3>
+						<h4>Bestellijst:</h4>
+						<ul>%s</ul>
+						<p><strong>Totaal: %s</strong></p>
+
+						<h4>Bezorgadres:</h4>
+						<p>%s</p>
+					</div>
+
+					<p><strong>Betaling via Tikkie:</strong></p>
+					<p>Je ontvangt binnenkort een e-mail met een Tikkie betaallink. Zodra wij de betaling hebben ontvangen, gaan we aan de slag met je bestelling!</p>
+
+					<p>Vragen? Neem contact met ons op via <a href="mailto:%s">%s</a></p>
+				</div>
+
+				<div class="divider"></div>
+
+				<!-- English Version -->
+				<div class="header">
+					<h1>Thank you for your order!</h1>
+				</div>
+				<div class="content">
+					<p>Dear %s,</p>
+					<p>We have received your order. Below you will find the details of your order.</p>
+
+					<div class="order-details">
+						<h3>Order Number: <strong>%s</strong></h3>
+						<h4>Order Items:</h4>
+						<ul>%s</ul>
+						<p><strong>Total: %s</strong></p>
+
+						<h4>Delivery Address:</h4>
+						<p>%s</p>
+					</div>
+
+					<p><strong>Payment via Tikkie:</strong></p>
+					<p>You will soon receive an email with a Tikkie payment link. Once we have received your payment, we will start preparing your order!</p>
+
+					<p>Questions? Contact us at <a href="mailto:%s">%s</a></p>
+				</div>
+
+				<div class="footer">
+					<p>MamaBloemetjes | Fresh Flowers Delivered with Love</p>
+				</div>
+			</div>
+		</body>
+		</html>
+	`, name, orderNumber, itemsListNL, totalFormatted, addressFormatted, es.cfg.Email.SupportEmail, es.cfg.Email.SupportEmail,
+		name, orderNumber, itemsListEN, totalFormatted, addressFormatted, es.cfg.Email.SupportEmail, es.cfg.Email.SupportEmail)
+
+	subject := fmt.Sprintf("Bevestiging van je bestelling %s / Order confirmation %s", orderNumber, orderNumber)
+
+	return es.SendEmail(email, subject, emailBody)
+}
+
+// SendPaymentLinkEmail sends a bilingual email with the Tikkie payment link
+func (es *EmailService) SendPaymentLinkEmail(email, name, orderNumber, paymentLink string) error {
+	emailBody := fmt.Sprintf(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+			<style>
+				body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+				.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+				.header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
+				.content { padding: 20px; background-color: #f9f9f9; }
+				.button { display: inline-block; padding: 15px 30px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+				.footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+				.divider { margin: 30px 0; border-top: 2px solid #ddd; }
+			</style>
+		</head>
+		<body>
+			<div class="container">
+				<!-- Dutch Version -->
+				<div class="header">
+					<h1>Je betaallink is klaar!</h1>
+				</div>
+				<div class="content">
+					<p>Beste %s,</p>
+					<p>Je Tikkie betaallink voor bestelling <strong>%s</strong> is klaar!</p>
+
+					<p style="text-align: center;">
+						<a href="%s" class="button">Betaal via Tikkie</a>
+					</p>
+
+					<p>Of kopieer deze link naar je browser:</p>
+					<p style="word-break: break-all;"><a href="%s">%s</a></p>
+
+					<p>Zodra wij je betaling hebben ontvangen, gaan we direct aan de slag met je bestelling!</p>
+
+					<p>Vragen? Neem contact met ons op via <a href="mailto:%s">%s</a></p>
+				</div>
+
+				<div class="divider"></div>
+
+				<!-- English Version -->
+				<div class="header">
+					<h1>Your payment link is ready!</h1>
+				</div>
+				<div class="content">
+					<p>Dear %s,</p>
+					<p>Your Tikkie payment link for order <strong>%s</strong> is ready!</p>
+
+					<p style="text-align: center;">
+						<a href="%s" class="button">Pay via Tikkie</a>
+					</p>
+
+					<p>Or copy this link to your browser:</p>
+					<p style="word-break: break-all;"><a href="%s">%s</a></p>
+
+					<p>Once we have received your payment, we will immediately start preparing your order!</p>
+
+					<p>Questions? Contact us at <a href="mailto:%s">%s</a></p>
+				</div>
+
+				<div class="footer">
+					<p>MamaBloemetjes | Fresh Flowers Delivered with Love</p>
+				</div>
+			</div>
+		</body>
+		</html>
+	`, name, orderNumber, paymentLink, paymentLink, paymentLink, es.cfg.Email.SupportEmail, es.cfg.Email.SupportEmail,
+		name, orderNumber, paymentLink, paymentLink, paymentLink, es.cfg.Email.SupportEmail, es.cfg.Email.SupportEmail)
+
+	subject := fmt.Sprintf("Betaallink voor bestelling %s / Payment link for order %s", orderNumber, orderNumber)
+
+	return es.SendEmail(email, subject, emailBody)
+}

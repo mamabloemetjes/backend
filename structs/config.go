@@ -3,13 +3,14 @@ package structs
 import "time"
 
 type Config struct {
-	Server    *ServerConfig
-	Cors      *CorsConfig
-	Database  *DatabaseConfig
-	Auth      *AuthConfig
-	Cache     *CacheConfig
-	RateLimit *RateLimitConfig
-	Email     *EmailConfig
+	Server     *ServerConfig
+	Cors       *CorsConfig
+	Database   *DatabaseConfig
+	Auth       *AuthConfig
+	Cache      *CacheConfig
+	RateLimit  *RateLimitConfig
+	Email      *EmailConfig
+	Encryption *EncryptionConfig
 }
 
 type ServerConfig struct {
@@ -102,4 +103,10 @@ type EmailConfig struct {
 	ApiKey                  string
 	From                    string
 	VerificationTokenExpiry time.Duration
+	OrderConfirmationFrom   string // Email address for order confirmations
+	SupportEmail            string // Support email to show in order emails
+}
+
+type EncryptionConfig struct {
+	Key string // AES-256 encryption key (32 bytes)
 }

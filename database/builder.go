@@ -602,6 +602,16 @@ func (q *QueryBuilder[T]) applyWhereConditions(query *bun.SelectQuery) *bun.Sele
 		if where.IsRaw {
 			query = query.Where(where.RawSQL, where.RawArgs...)
 		} else {
+			// Handle IN operator specially
+			if where.Operator == "IN" {
+				if where.Negate {
+					query = query.Where("? NOT IN (?)", bun.Ident(where.Column), bun.In(where.Value))
+				} else {
+					query = query.Where("? IN (?)", bun.Ident(where.Column), bun.In(where.Value))
+				}
+				continue
+			}
+
 			var condition string
 			if where.Negate {
 				condition = fmt.Sprintf("NOT (%s %s ?)", where.Column, where.Operator)

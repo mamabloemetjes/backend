@@ -30,11 +30,10 @@ CREATE TABLE IF NOT EXISTS public.users (
 
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 
-    -- Constraints
-    CONSTRAINT username_length CHECK (char_length(username) >= 3 AND char_length(username) <= 50),
-    CONSTRAINT email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    -- NOTE: Constraints removed to support encryption
+    -- Email and username are now encrypted for privacy and cannot be validated with regex/length checks
 ) TABLESPACE pg_default;
 
 -- ============================================================================
@@ -50,15 +49,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email
     ON public.users USING btree (email)
     TABLESPACE pg_default;
 
--- Case-insensitive username lookup
-CREATE INDEX IF NOT EXISTS idx_users_username_lower
-    ON public.users USING btree (LOWER(username))
-    TABLESPACE pg_default;
-
--- Case-insensitive email lookup
-CREATE INDEX IF NOT EXISTS idx_users_email_lower
-    ON public.users USING btree (LOWER(email))
-    TABLESPACE pg_default;
+-- NOTE: Case-insensitive indexes removed - fields are encrypted
+-- LOWER() cannot be used on encrypted data
 
 -- Active users composite index
 CREATE INDEX IF NOT EXISTS idx_users_active_created
@@ -109,22 +101,8 @@ CREATE TRIGGER set_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_users_updated_at_column();
 
--- Function to normalize email and username (lowercase)
-CREATE OR REPLACE FUNCTION normalize_user_fields()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.email = LOWER(TRIM(NEW.email));
-    NEW.username = TRIM(NEW.username);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger to normalize fields before insert or update
-DROP TRIGGER IF EXISTS normalize_fields ON public.users;
-CREATE TRIGGER normalize_fields
-    BEFORE INSERT OR UPDATE ON public.users
-    FOR EACH ROW
-    EXECUTE FUNCTION normalize_user_fields();
+-- NOTE: normalize_user_fields function and trigger removed
+-- Fields are now encrypted and normalization happens in application layer before encryption
 
 -- ============================================================================
 -- COMMENTS (Documentation)

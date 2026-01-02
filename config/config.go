@@ -90,6 +90,9 @@ func GetConfig() *structs.Config {
 				From:                    getEnvAsString("EMAIl_ADDRESS", "no_email"),
 				VerificationTokenExpiry: getEnvAsTimeDuration("EMAIL_VERIFICATION_TOKEN_EXPIRY", 15*time.Minute),
 			},
+			Encryption: &structs.EncryptionConfig{
+				Key: getEnvAsString("ENCRYPTION_KEY", ""),
+			},
 		}
 	})
 	return configInstance
