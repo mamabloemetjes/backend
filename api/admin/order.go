@@ -43,14 +43,6 @@ func (ar *AdminRoutesManager) AttachPaymentLink(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if body.PaymentLink == "" {
-		gecho.BadRequest(w,
-			gecho.WithMessage("error.order.paymentLinkRequired"),
-			gecho.Send(),
-		)
-		return
-	}
-
 	// Attach payment link (service handles email sending)
 	err = ar.orderService.AttachPaymentLink(r.Context(), orderId, body.PaymentLink)
 	if err != nil {

@@ -11,14 +11,8 @@ import (
 func (ar *AuthRoutesManager) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	body, err := lib.ExtractAndValidateBody[structs.AuthRequest](r)
 	if err != nil {
-		ar.logger.Warn("Failed to extract request body", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("error.auth.checkLoginInformation"), gecho.Send())
-		return
-	}
-
-	if body.Email == "" || body.Password == "" {
-		ar.logger.Warn("Missing required fields in login", gecho.Field("body", body))
-		gecho.BadRequest(w, gecho.WithMessage("error.auth.emailAndPasswordRequired"), gecho.Send())
+		ar.logger.Warn("Failed to extract and validate request body", gecho.Field("error", err))
+		gecho.BadRequest(w, gecho.WithMessage("error.auth.checkLoginInformation"), gecho.WithData(err), gecho.Send())
 		return
 	}
 

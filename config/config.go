@@ -1,14 +1,19 @@
 package config
 
 import (
+	"fmt"
+	"log"
 	"mamabloemetjes_server/structs"
 	"sync"
 	"time"
+
+	"github.com/go-playground/validator/v10"
 )
 
 var (
 	configInstance *structs.Config
 	configOnce     sync.Once
+	validate       = validator.New()
 )
 
 func GetConfig() *structs.Config {
@@ -96,8 +101,48 @@ func GetConfig() *structs.Config {
 				Key: getEnvAsString("ENCRYPTION_KEY", ""),
 			},
 		}
+
+		// Validate the configuration
+		if err := validate.Struct(configInstance); err != nil {
+			log.Fatalf("Configuration validation failed: %v", err)
+		}
+
+		// Additional custom validations
+		if err := validateConfig(configInstance); err != nil {
+			log.Fatalf("Configuration validation failed: %v", err)
+		}
 	})
 	return configInstance
+}
+
+// validateConfig performs additional custom validation checks
+func validateConfig(cfg *structs.Config) error {
+	// Ensure MaxIdleConns doesn't exceed PoolSize for cache
+	if cfg.Cache.MaxIdleConns > cfg.Cache.PoolSize {
+		return fmt.Errorf("cache MaxIdleConns (%d) cannot exceed PoolSize (%d)", cfg.Cache.MaxIdleConns, cfg.Cache.PoolSize)
+	}
+
+	// Ensure MinIdleConns doesn't exceed MaxIdleConns for cache
+	if cfg.Cache.MinIdleConns > cfg.Cache.MaxIdleConns {
+		return fmt.Errorf("cache MinIdleConns (%d) cannot exceed MaxIdleConns (%d)", cfg.Cache.MinIdleConns, cfg.Cache.MaxIdleConns)
+	}
+
+	// Ensure DB MinConns doesn't exceed MaxConns
+	if cfg.Database.MinConns > cfg.Database.MaxConns {
+		return fmt.Errorf("database MinConns (%d) cannot exceed MaxConns (%d)", cfg.Database.MinConns, cfg.Database.MaxConns)
+	}
+
+	// Ensure MinRetryBackoff doesn't exceed MaxRetryBackoff
+	if cfg.Cache.MinRetryBackoff > cfg.Cache.MaxRetryBackoff {
+		return fmt.Errorf("cache MinRetryBackoff (%v) cannot exceed MaxRetryBackoff (%v)", cfg.Cache.MinRetryBackoff, cfg.Cache.MaxRetryBackoff)
+	}
+
+	// Ensure access token expiry is less than refresh token expiry
+	if cfg.Auth.AccessTokenExpiry >= cfg.Auth.RefreshTokenExpiry {
+		return fmt.Errorf("access token expiry (%v) must be less than refresh token expiry (%v)", cfg.Auth.AccessTokenExpiry, cfg.Auth.RefreshTokenExpiry)
+	}
+
+	return nil
 }
 
 func GetLogLevel() string {

@@ -526,14 +526,14 @@ func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Pro
 }
 
 type UpdateProductRequest struct {
-	Name        *string               `json:"name,omitempty"`
-	SKU         *string               `json:"sku,omitempty"`
-	Price       *uint64               `json:"price,omitempty"`
-	Discount    *uint64               `json:"discount,omitempty"`
-	Tax         *uint64               `json:"tax,omitempty"`
-	Description *string               `json:"description,omitempty"`
+	Name        *string               `json:"name,omitempty" validate:"omitempty,min=2,max=200"`
+	SKU         *string               `json:"sku,omitempty" validate:"omitempty,min=3,max=50"`
+	Price       *uint64               `json:"price,omitempty" validate:"omitempty,gte=0"`
+	Discount    *uint64               `json:"discount,omitempty" validate:"omitempty,gte=0"`
+	Tax         *uint64               `json:"tax,omitempty" validate:"omitempty,gte=0"`
+	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
 	IsActive    *bool                 `json:"is_active,omitempty"`
-	Images      []tables.ProductImage `json:"images,omitempty"`
+	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
 }
 
 func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID, req *UpdateProductRequest) error {

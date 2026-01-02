@@ -62,14 +62,25 @@ func mapValidationErrors(errs validator.ValidationErrors) *ValidationError {
 			message = "is required"
 		case "email":
 			message = "must be a valid email address"
+		case "url":
+			message = "must be a valid URL"
+		case "uuid4":
+			message = "must be a valid UUID"
 		case "min":
 			message = "must be at least " + e.Param() + " characters"
 		case "max":
 			message = "must be at most " + e.Param() + " characters"
+		case "len":
+			message = "must be exactly " + e.Param() + " characters"
 		case "gte":
 			message = "must be greater than or equal to " + e.Param()
 		case "lte":
 			message = "must be less than or equal to " + e.Param()
+		case "oneof":
+			message = "must be one of: " + e.Param()
+		case "dive":
+			// dive is a nested validation tag, skip it as the actual error will be reported by the nested field
+			continue
 		default:
 			message = "is invalid"
 		}
