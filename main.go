@@ -83,8 +83,12 @@ func run() error {
 
 	// Setup server
 	server := &http.Server{
-		Addr:    cfg.Server.Port,
-		Handler: r,
+		Addr:              cfg.Server.Port,
+		Handler:           r,
+		ReadTimeout:       cfg.Server.ReadTimeout,
+		WriteTimeout:      cfg.Server.WriteTimeout,
+		IdleTimeout:       cfg.Server.IdleTimeout,
+		ReadHeaderTimeout: cfg.Server.ReadHeaderTimeout,
 	}
 
 	// Graceful shutdown context

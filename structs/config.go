@@ -14,16 +14,17 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	AppName        string        // Mamabloemetjes
-	Environment    string        // development, production
-	Port           string        // :8082
-	LogLevel       string        // debug, info, warn, error
-	ServerURL      string        // Base URL of the server
-	FrontendURL    string        // Base URL of the frontend
-	ReadTimeout    time.Duration // in seconds
-	WriteTimeout   time.Duration // in seconds
-	IdleTimeout    time.Duration // in seconds
-	MaxHeaderBytes int           // in bytes
+	AppName           string        // Mamabloemetjes
+	Environment       string        // development, production
+	Port              string        // :8082
+	LogLevel          string        // debug, info, warn, error
+	ServerURL         string        // Base URL of the server
+	FrontendURL       string        // Base URL of the frontend
+	ReadTimeout       time.Duration // in seconds
+	WriteTimeout      time.Duration // in seconds
+	IdleTimeout       time.Duration // in seconds
+	ReadHeaderTimeout time.Duration // in seconds
+	MaxHeaderBytes    int           // in bytes
 }
 
 type CorsConfig struct {

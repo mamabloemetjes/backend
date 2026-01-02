@@ -15,16 +15,17 @@ func GetConfig() *structs.Config {
 	configOnce.Do(func() {
 		configInstance = &structs.Config{
 			Server: &structs.ServerConfig{
-				AppName:        getEnvAsString("APP_NAME", "Mamabloemetjes_no_env"),
-				Environment:    getEnvAsString("APP_ENV", "development"),
-				Port:           getEnvAsString("APP_PORT", ":8082"),
-				LogLevel:       getEnvAsString("APP_LOG_LEVEL", "info"),
-				ServerURL:      getEnvAsString("APP_SERVER_URL", "http://localhost:8082"),
-				FrontendURL:    getEnvAsString("APP_FRONTEND_URL", "http://localhost:3000"),
-				ReadTimeout:    getEnvAsTimeDuration("SERVER_READ_TIME_OUT", 15*time.Second),
-				WriteTimeout:   getEnvAsTimeDuration("SERVER_WRITE_TIME_OUT", 15*time.Second),
-				IdleTimeout:    getEnvAsTimeDuration("SERVER_IDLE_TIME_OUT", 60*time.Second),
-				MaxHeaderBytes: getEnvAsInt("SERVER_MAX_HEADER_BYTES", 1<<20), // 1 MB
+				AppName:           getEnvAsString("APP_NAME", "Mamabloemetjes_no_env"),
+				Environment:       getEnvAsString("APP_ENV", "development"),
+				Port:              getEnvAsString("APP_PORT", ":8082"),
+				LogLevel:          getEnvAsString("APP_LOG_LEVEL", "info"),
+				ServerURL:         getEnvAsString("APP_SERVER_URL", "http://localhost:8082"),
+				FrontendURL:       getEnvAsString("APP_FRONTEND_URL", "http://localhost:3000"),
+				ReadTimeout:       getEnvAsTimeDuration("SERVER_READ_TIME_OUT", 15*time.Second),
+				WriteTimeout:      getEnvAsTimeDuration("SERVER_WRITE_TIME_OUT", 15*time.Second),
+				IdleTimeout:       getEnvAsTimeDuration("SERVER_IDLE_TIME_OUT", 60*time.Second),
+				ReadHeaderTimeout: getEnvAsTimeDuration("SERVER_READ_HEADER_TIMEOUT", 10*time.Second),
+				MaxHeaderBytes:    getEnvAsInt("SERVER_MAX_HEADER_BYTES", 1<<20), // 1 MB
 			},
 			Cors: &structs.CorsConfig{
 				AllowedOrigins:   getEnvAsSlice("CORS_ALLOW_ORIGINS", []string{"localhost", "http://localhost:3000"}),
