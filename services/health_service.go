@@ -10,9 +10,11 @@ import (
 )
 
 var uptimeStart time.Time
+var lastChecked time.Time
 
 func init() {
 	uptimeStart = time.Now()
+	lastChecked = time.Now()
 }
 
 type serverHealthStatus struct {
@@ -88,13 +90,15 @@ func (hs *HealthService) GetDatabaseHealthStatus() (databaseHealthStatus, error)
 
 	dbStatus := databaseHealthStatus{
 		Connected:      err == nil,
-		LastChecked:    time.Now(),
+		LastChecked:    lastChecked,
 		ResponseTimeMs: elapsed,
 	}
 
 	if err != nil {
 		hs.logger.Error("Database health check failed: ", err)
 	}
+
+	lastChecked = time.Now()
 
 	// You can return or log dbStatus as needed
 	return dbStatus, err

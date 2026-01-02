@@ -93,8 +93,9 @@ func GetConfig() *structs.Config {
 			},
 			Email: &structs.EmailConfig{
 				ApiKey:                  getEnvAsString("EMAIL_API_KEY", "no_api_key"),
-				From:                    getEnvAsString("EMAIl_ADDRESS", "no_email"),
-				SupportEmail:            getEnvAsString("EMAIL_SUPPORT_ADDRESS", "no_support_email"),
+				From:                    getEnvAsString("EMAIL_ADDRESS", "noreply@example.com"),
+				SupportEmail:            getEnvAsString("EMAIL_SUPPORT_ADDRESS", "support@example.com"),
+				OrderConfirmationFrom:   getEnvAsString("EMAIL_ORDER_CONFIRMATION_FROM", "orders@example.com"),
 				VerificationTokenExpiry: getEnvAsTimeDuration("EMAIL_VERIFICATION_TOKEN_EXPIRY", 15*time.Minute),
 			},
 			Encryption: &structs.EncryptionConfig{
