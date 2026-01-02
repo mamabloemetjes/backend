@@ -183,7 +183,7 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 					<p><strong>Betaling via Tikkie:</strong></p>
 					<p>Je ontvangt binnenkort een e-mail met een Tikkie betaallink. Zodra wij de betaling hebben ontvangen, gaan we aan de slag met je bestelling!</p>
 
-					<p>Vragen? Neem contact met ons op via <a href="mailto:%s">%s</a></p>
+					<p>Vragen? Neem contact met ons op via %s</p>
 				</div>
 
 				<div class="divider"></div>
@@ -209,7 +209,7 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 					<p><strong>Payment via Tikkie:</strong></p>
 					<p>You will soon receive an email with a Tikkie payment link. Once we have received your payment, we will start preparing your order!</p>
 
-					<p>Questions? Contact us at <a href="mailto:%s">%s</a></p>
+					<p>Questions? Contact us at %s</p>
 				</div>
 
 				<div class="footer">
@@ -218,8 +218,8 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 			</div>
 		</body>
 		</html>
-	`, name, orderNumber, itemsListNL, totalFormatted, addressFormatted, es.cfg.Email.SupportEmail, es.cfg.Email.SupportEmail,
-		name, orderNumber, itemsListEN, totalFormatted, addressFormatted, es.cfg.Email.SupportEmail, es.cfg.Email.SupportEmail)
+	`, name, orderNumber, itemsListNL, totalFormatted, addressFormatted, es.cfg.Email.SupportEmail,
+		name, orderNumber, itemsListEN, totalFormatted, addressFormatted, es.cfg.Email.SupportEmail)
 
 	subject := fmt.Sprintf("Bevestiging van je bestelling %s / Order confirmation %s", orderNumber, orderNumber)
 
@@ -258,11 +258,11 @@ func (es *EmailService) SendPaymentLinkEmail(email, name, orderNumber, paymentLi
 					</p>
 
 					<p>Of kopieer deze link naar je browser:</p>
-					<p style="word-break: break-all;"><a href="%s">%s</a></p>
+					<p style="word-break: break-all;">%s</p>
 
 					<p>Zodra wij je betaling hebben ontvangen, gaan we direct aan de slag met je bestelling!</p>
 
-					<p>Vragen? Neem contact met ons op via <a href="mailto:%s">%s</a></p>
+					<p>Vragen? Neem contact met ons op via %s</p>
 				</div>
 
 				<div class="divider"></div>
@@ -280,11 +280,11 @@ func (es *EmailService) SendPaymentLinkEmail(email, name, orderNumber, paymentLi
 					</p>
 
 					<p>Or copy this link to your browser:</p>
-					<p style="word-break: break-all;"><a href="%s">%s</a></p>
+					<p style="word-break: break-all;">%s</p>
 
 					<p>Once we have received your payment, we will immediately start preparing your order!</p>
 
-					<p>Questions? Contact us at <a href="mailto:%s">%s</a></p>
+					<p>Questions? Contact us at %s</p>
 				</div>
 
 				<div class="footer">
@@ -293,8 +293,8 @@ func (es *EmailService) SendPaymentLinkEmail(email, name, orderNumber, paymentLi
 			</div>
 		</body>
 		</html>
-	`, name, orderNumber, paymentLink, paymentLink, paymentLink, es.cfg.Email.SupportEmail, es.cfg.Email.SupportEmail,
-		name, orderNumber, paymentLink, paymentLink, paymentLink, es.cfg.Email.SupportEmail, es.cfg.Email.SupportEmail)
+	`, name, orderNumber, paymentLink, paymentLink, es.cfg.Email.SupportEmail,
+		name, orderNumber, paymentLink, paymentLink, es.cfg.Email.SupportEmail)
 
 	subject := fmt.Sprintf("Betaallink voor bestelling %s / Payment link for order %s", orderNumber, orderNumber)
 
