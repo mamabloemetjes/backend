@@ -8,14 +8,13 @@ require github.com/MonkyMars/gecho v0.6.2 // direct
 
 require github.com/go-chi/chi/v5 v5.2.3 // direct
 
-require github.com/go-chi/cors v1.2.2 // direct
-
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/resend/resend-go/v3 v3.0.0
+	github.com/rs/cors v1.11.1
 	github.com/uptrace/bun v1.2.16
 	github.com/uptrace/bun/dialect/pgdialect v1.2.16
 	github.com/uptrace/bun/driver/pgdriver v1.2.16

@@ -27,11 +27,12 @@ func GetConfig() *structs.Config {
 				MaxHeaderBytes: getEnvAsInt("SERVER_MAX_HEADER_BYTES", 1<<20), // 1 MB
 			},
 			Cors: &structs.CorsConfig{
-				AllowOrigins:     getEnvAsSlice("CORS_ALLOW_ORIGINS", []string{"localhost", "http://localhost:3000"}),
-				AllowMethods:     getEnvAsSlice("CORS_ALLOW_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
-				AllowHeaders:     getEnvAsSlice("CORS_ALLOW_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-CSRF-Token"}),
+				AllowedOrigins:   getEnvAsSlice("CORS_ALLOW_ORIGINS", []string{"localhost", "http://localhost:3000"}),
+				AllowedMethods:   getEnvAsSlice("CORS_ALLOW_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+				AllowedHeaders:   getEnvAsSlice("CORS_ALLOW_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-CSRF-Token"}),
 				AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", false),
 				ExposedHeaders:   getEnvAsSlice("CORS_EXPOSED_HEADERS", []string{"Content-Length", "Authorization"}),
+				MaxAge:           getEnvAsInt("CORS_MAX_AGE", 600),
 			},
 			Database: &structs.DatabaseConfig{
 				Host:         getEnvAsString("DB_HOST", "localhost"),

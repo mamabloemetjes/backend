@@ -26,11 +26,12 @@ type ServerConfig struct {
 }
 
 type CorsConfig struct {
-	AllowOrigins     []string
-	AllowMethods     []string
-	AllowHeaders     []string
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
 	ExposedHeaders   []string
 	AllowCredentials bool
+	MaxAge           int // in seconds
 }
 
 type DatabaseConfig struct {
