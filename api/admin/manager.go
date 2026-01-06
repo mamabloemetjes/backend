@@ -31,6 +31,7 @@ func NewAdminRoutesManager(
 
 func (ar *AdminRoutesManager) RegisterRoutes(r chi.Router) {
 	r.Route("/admin", func(r chi.Router) {
+		r.Use(ar.mw.UserAuthMiddleware)
 		r.Use(ar.mw.AdminAuthMiddleware)
 		r.Get("/products", ar.ListAllProducts)
 

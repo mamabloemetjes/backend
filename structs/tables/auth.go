@@ -30,7 +30,7 @@ type Address struct {
 	UserId     *uuid.UUID `bun:"user_id,type:uuid" json:"user_id,omitempty" validate:"omitempty,uuid4"` // Nullable for guest orders
 	Street     string     `bun:"street,notnull" json:"street" validate:"required,min=2,max=200"`
 	HouseNo    string     `bun:"house_no,notnull" json:"house_no" validate:"required,min=1,max=10"`
-	PostalCode string     `bun:"postal_code,notnull" json:"postal_code" validate:"required,min=4,max=10"`
+	PostalCode string     `bun:"postal_code,notnull" json:"postal_code" validate:"required,len=7,nl_postalcode"`
 	City       string     `bun:"city,notnull" json:"city" validate:"required,min=2,max=100"`
 	Country    string     `bun:"country,notnull" json:"country" validate:"required,len=2"` // "NL"
 	CreatedAt  time.Time  `bun:"created_at,notnull,default:now()" json:"created_at"`

@@ -102,10 +102,10 @@ type RateLimitConfig struct {
 
 type EmailConfig struct {
 	ApiKey                  string        `validate:"required,min=10"`
-	From                    string        `validate:"required,email"`
+	From                    string        `validate:"required"`
 	VerificationTokenExpiry time.Duration `validate:"required,min=1m"`
-	OrderConfirmationFrom   string        `validate:"required,email"` // Email address for order confirmations
-	SupportEmail            string        `validate:"required,email"` // Support email to show in order emails
+	OrderConfirmationFrom   string        `validate:"required"` // Email address for order confirmations
+	SupportEmail            string        `validate:"required"` // Support email to show in order emails
 }
 
 type EncryptionConfig struct {

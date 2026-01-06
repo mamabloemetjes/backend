@@ -10,7 +10,7 @@ type OrderRequest struct {
 	// Address Data
 	Street     string `json:"street" validate:"required,min=2,max=200"`
 	HouseNo    string `json:"house_no" validate:"required,min=1,max=10"`
-	PostalCode string `json:"postal_code" validate:"required,min=4,max=10"`
+	PostalCode string `json:"postal_code" validate:"required,len=7,nl_postalcode"`
 	City       string `json:"city" validate:"required,min=2,max=100"`
 	Country    string `json:"country" validate:"omitempty,len=2"` // ISO country code
 

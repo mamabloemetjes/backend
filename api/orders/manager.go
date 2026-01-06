@@ -29,7 +29,8 @@ func (orm *OrderRoutesManager) RegisterRoutes(r chi.Router) {
 		r.Post("/create", orm.CreateOrder)
 		r.Route("/", func(r chi.Router) {
 			r.Use(orm.middleware.UserAuthMiddleware)
-			r.Get("/my-orders", orm.GetMyOrders) // Requires authentication
+			r.Get("/my-orders", orm.GetMyOrders)         // Requires authentication
+			r.Get("/my-orders/{id}", orm.GetMyOrderById) // Get specific order details
 		})
 	})
 }

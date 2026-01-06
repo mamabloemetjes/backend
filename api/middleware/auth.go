@@ -61,11 +61,11 @@ func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 // Must be used after UserAuthMiddleware
 func (mw *Middleware) AdminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get claims from context
-		claims, err := lib.ExtractClaims(r)
-		if err != nil {
-			mw.logger.Warn("Failed to extract claims from request", gecho.Field("error", err))
-			gecho.Forbidden(w, gecho.WithMessage("error.auth.accessDenied"), gecho.Send())
+		// Get claims from context (already validated by UserAuthMiddleware)
+		claims, ok := GetClaimsFromContext(r.Context())
+		if !ok {
+			mw.logger.Error("Claims not found in context - UserAuthMiddleware must be used before AdminAuthMiddleware")
+			gecho.Unauthorized(w, gecho.WithMessage("error.auth.invalidOrMissingAccessToken"), gecho.Send())
 			return
 		}
 

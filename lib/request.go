@@ -4,12 +4,26 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
 
 var validate = validator.New()
+
+// Register custom validators on init
+func init() {
+	validate.RegisterValidation("nl_postalcode", validateNLPostalCode)
+}
+
+// validateNLPostalCode validates Dutch postal code format: 1234 AB (4 digits, space, 2 letters)
+func validateNLPostalCode(fl validator.FieldLevel) bool {
+	postalCode := fl.Field().String()
+	// Match exactly: 4 digits, one space, 2 uppercase letters
+	matched, _ := regexp.MatchString(`^[0-9]{4}\s[A-Z]{2}$`, strings.ToUpper(postalCode))
+	return matched
+}
 
 // FieldError represents a clean validation error for APIs
 type FieldError struct {
@@ -78,6 +92,8 @@ func mapValidationErrors(errs validator.ValidationErrors) *ValidationError {
 			message = "must be less than or equal to " + e.Param()
 		case "oneof":
 			message = "must be one of: " + e.Param()
+		case "nl_postalcode":
+			message = "must be in format: 1234 AB (4 digits, space, 2 letters)"
 		case "dive":
 			// dive is a nested validation tag, skip it as the actual error will be reported by the nested field
 			continue
