@@ -16,6 +16,7 @@ type UpdateProductRequest struct {
 	Price       *uint64               `json:"price,omitempty" validate:"omitempty,gte=0"`
 	Discount    *uint64               `json:"discount,omitempty" validate:"omitempty,gte=0"`
 	Tax         *uint64               `json:"tax,omitempty" validate:"omitempty,gte=0"`
+	Subtotal    *uint64               `json:"subtotal,omitempty" validate:"omitempty,gte=0"`
 	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
 	IsActive    *bool                 `json:"is_active,omitempty"`
 	Size        *string               `json:"size,omitempty" validate:"omitempty,min=1,max=50"`

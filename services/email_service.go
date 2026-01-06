@@ -7,6 +7,7 @@ import (
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs"
 	"mamabloemetjes_server/structs/tables"
+	"strings"
 	"sync"
 	"time"
 
@@ -95,20 +96,59 @@ func (es *EmailService) SendVerificationEmail(user *tables.User) (*tables.EmailV
 		<html>
 		<head>
 			<meta charset="UTF-8">
+			<style>
+				body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+				.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+				.header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
+				.content { padding: 20px; background-color: #f9f9f9; }
+				.button { display: inline-block; padding: 15px 30px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+				.footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+				.divider { margin: 30px 0; border-top: 2px solid #ddd; }
+			</style>
 		</head>
 		<body>
-			<p>Please verify your email by clicking the following link:</p>
-			<p><a href="%s">Verify Email</a></p>
-			<p>This link will expire in %.0f minutes.</p>
-			<p>If you did not create an account, please ignore this email.</p>
+			<div class="container">
+				<!-- Dutch Version -->
+				<div class="header">
+					<h1>Verifieer je e-mailadres</h1>
+				</div>
+				<div class="content">
+					<p>Verifieer je e-mailadres door op de volgende link te klikken:</p>
+					<p style="text-align: center;">
+						<a href="%s" class="button">Verifieer E-mail</a>
+					</p>
+					<p>Deze link verloopt over %.0f minuten.</p>
+					<p>Als je geen account hebt aangemaakt, kun je deze e-mail negeren.</p>
 
-			<p>Link not working? Copy and paste the following URL into your browser:</p>
-			<p>%s</p>
+					<p>Link werkt niet? Kopieer en plak de volgende URL in je browser:</p>
+					<p style="word-break: break-all;">%s</p>
+				</div>
 
-			<p>Best regards,<br/>The MamaBloemetjes Team</p>
+				<div class="divider"></div>
+
+				<!-- English Version -->
+				<div class="header">
+					<h1>Verify your email address</h1>
+				</div>
+				<div class="content">
+					<p>Please verify your email by clicking the following link:</p>
+					<p style="text-align: center;">
+						<a href="%s" class="button">Verify Email</a>
+					</p>
+					<p>This link will expire in %.0f minutes.</p>
+					<p>If you did not create an account, please ignore this email.</p>
+
+					<p>Link not working? Copy and paste the following URL into your browser:</p>
+					<p style="word-break: break-all;">%s</p>
+				</div>
+
+				<div class="footer">
+					<p>MamaBloemetjes | Fresh Flowers Delivered with Love</p>
+				</div>
+			</div>
 		</body>
 		</html>
-	`, verificationLink, time.Until(expiration).Minutes(), verificationLink)
+	`, verificationLink, time.Until(expiration).Minutes(), verificationLink, verificationLink, time.Until(expiration).Minutes(), verificationLink)
 
 	err = es.SendEmail(user.Email, "Verify your email", emailBody)
 	if err != nil {
@@ -133,11 +173,14 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 	// Build order items list
 	itemsListNL := ""
 	itemsListEN := ""
+	var itemsBuilderNL, itemsBuilderEN strings.Builder
 	for _, line := range orderLines {
 		lineTotal := fmt.Sprintf("€%.2f", float64(line.LineTotal)/100)
-		itemsListNL += fmt.Sprintf("<li>%dx %s - %s</li>", line.Quantity, line.ProductName, lineTotal)
-		itemsListEN += fmt.Sprintf("<li>%dx %s - %s</li>", line.Quantity, line.ProductName, lineTotal)
+		fmt.Fprintf(&itemsBuilderNL, "<li>%dx %s - %s</li>", line.Quantity, line.ProductName, lineTotal)
+		fmt.Fprintf(&itemsBuilderEN, "<li>%dx %s - %s</li>", line.Quantity, line.ProductName, lineTotal)
 	}
+	itemsListNL = itemsBuilderNL.String()
+	itemsListEN = itemsBuilderEN.String()
 
 	// Format address
 	addressFormatted := fmt.Sprintf("%s %s<br>%s %s<br>%s",
@@ -168,7 +211,7 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 				</div>
 				<div class="content">
 					<p>Beste %s,</p>
-					<p>We hebben je bestelling goed ontvangen. Hieronder vind je de details van je bestelling.</p>
+					<p>Je bestelling is ontvangen. Hieronder vind je de details van je bestelling.</p>
 
 					<div class="order-details">
 						<h3>Bestelnummer: <strong>%s</strong></h3>
@@ -181,9 +224,9 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 					</div>
 
 					<p><strong>Betaling via Tikkie:</strong></p>
-					<p>Je ontvangt binnenkort een e-mail met een Tikkie betaallink. Zodra wij de betaling hebben ontvangen, gaan we aan de slag met je bestelling!</p>
+					<p>Je ontvangt binnenkort een e-mail met een Tikkie betaallink. Zodra de betaling is ontvangen, ga ik aan de slag met je bestelling!</p>
 
-					<p>Vragen? Neem contact met ons op via %s</p>
+					<p>Vragen? Neem contact met mij op via %s</p>
 				</div>
 
 				<div class="divider"></div>
@@ -194,7 +237,7 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 				</div>
 				<div class="content">
 					<p>Dear %s,</p>
-					<p>We have received your order. Below you will find the details of your order.</p>
+					<p>The order has beenr recieved. Below you will find the details of your order.</p>
 
 					<div class="order-details">
 						<h3>Order Number: <strong>%s</strong></h3>
@@ -207,9 +250,9 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 					</div>
 
 					<p><strong>Payment via Tikkie:</strong></p>
-					<p>You will soon receive an email with a Tikkie payment link. Once we have received your payment, we will start preparing your order!</p>
+					<p>You will soon receive an email with a Tikkie payment link. Once the payment is received, I will start preparing your order!</p>
 
-					<p>Questions? Contact us at %s</p>
+					<p>Questions? Contact me at %s</p>
 				</div>
 
 				<div class="footer">
@@ -260,7 +303,7 @@ func (es *EmailService) SendPaymentLinkEmail(email, name, orderNumber, paymentLi
 					<p>Of kopieer deze link naar je browser:</p>
 					<p style="word-break: break-all;">%s</p>
 
-					<p>Zodra wij je betaling hebben ontvangen, gaan we direct aan de slag met je bestelling!</p>
+					<p>Zodra de betaling is ontvangen, ga ik direct aan de slag met je bestelling!</p>
 
 					<p>Vragen? Neem contact met ons op via %s</p>
 				</div>
@@ -282,9 +325,9 @@ func (es *EmailService) SendPaymentLinkEmail(email, name, orderNumber, paymentLi
 					<p>Or copy this link to your browser:</p>
 					<p style="word-break: break-all;">%s</p>
 
-					<p>Once we have received your payment, we will immediately start preparing your order!</p>
+					<p>Once the payment is recieved, I will immediately start preparing your order!</p>
 
-					<p>Questions? Contact us at %s</p>
+					<p>Questions? Contact me at %s</p>
 				</div>
 
 				<div class="footer">
