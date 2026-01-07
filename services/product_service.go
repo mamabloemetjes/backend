@@ -635,6 +635,12 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 					gecho.Field("product_id", productID),
 				)
 			}
+			if err := ps.cacheService.InvalidateActiveProductsListCache(); err != nil {
+				ps.logger.Warn("Failed to invalidate active products list cache after product update",
+					gecho.Field("error", err),
+					gecho.Field("product_id", productID),
+				)
+			}
 		}()
 
 		return nil
