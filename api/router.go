@@ -29,6 +29,7 @@ func App(
 
 	// Observability
 	r.Use(mw.SetupLoggerMiddleware())
+	r.Use(middleware.MetricsMiddleware)
 
 	// CORS (must be before auth / csrf)
 	r.Use(mw.SetupCORS().Handler)

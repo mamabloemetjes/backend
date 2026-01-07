@@ -11,26 +11,27 @@ import (
 )
 
 type UpdateProductRequest struct {
-	Name        *string               `json:"name,omitempty"`
-	SKU         *string               `json:"sku,omitempty"`
-	Price       *uint64               `json:"price,omitempty"`
-	Discount    *uint64               `json:"discount,omitempty"`
-	Tax         *uint64               `json:"tax,omitempty"`
-	Description *string               `json:"description,omitempty"`
+	Name        *string               `json:"name,omitempty" validate:"omitempty,min=2,max=200"`
+	SKU         *string               `json:"sku,omitempty" validate:"omitempty,min=3,max=50"`
+	Price       *uint64               `json:"price,omitempty" validate:"omitempty,gte=0"`
+	Discount    *uint64               `json:"discount,omitempty" validate:"omitempty,gte=0"`
+	Tax         *uint64               `json:"tax,omitempty" validate:"omitempty,gte=0"`
+	Subtotal    *uint64               `json:"subtotal,omitempty" validate:"omitempty,gte=0"`
+	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
 	IsActive    *bool                 `json:"is_active,omitempty"`
-	Size        *string               `json:"size,omitempty"`
-	Colors      []string              `json:"colors,omitempty"`
-	ProductType *string               `json:"product_type,omitempty"`
-	Stock       *uint16               `json:"stock,omitempty"`
-	Images      []tables.ProductImage `json:"images,omitempty"`
+	Size        *string               `json:"size,omitempty" validate:"omitempty,min=1,max=50"`
+	Colors      []string              `json:"colors,omitempty" validate:"omitempty,dive,min=2,max=50"`
+	ProductType *string               `json:"product_type,omitempty" validate:"omitempty,min=2,max=100"`
+	Stock       *uint16               `json:"stock,omitempty" validate:"omitempty,gte=0"`
+	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
 }
 
 type UpdateProductsRequest struct {
-	Products map[string]UpdateProductRequest `json:"products"`
+	Products map[string]UpdateProductRequest `json:"products" validate:"required,min=1,dive,keys,uuid4,endkeys"`
 }
 
 type UpdateProductsStockRequest struct {
-	Stocks map[string]int `json:"stocks"`
+	Stocks map[string]int `json:"stocks" validate:"required,min=1,dive,keys,uuid4,endkeys,required,gte=0"`
 }
 
 func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Request) {

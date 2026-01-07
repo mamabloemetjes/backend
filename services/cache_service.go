@@ -420,6 +420,10 @@ func (cs *CacheService) SetActiveProductsList(page, pageSize int, includeImages 
 	return setJSON(cs, key, products, ttl)
 }
 
+func (cs *CacheService) InvalidateActiveProductsListCache() error {
+	return cs.DeletePattern("products:active:*")
+}
+
 // GetProductBySKU retrieves a cached product by SKU
 func (cs *CacheService) GetProductBySKU(sku string) (*tables.Product, error) {
 	key := fmt.Sprintf("product:sku:%s", sku)

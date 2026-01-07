@@ -169,7 +169,7 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 		gecho.Field("has_images", len(product.Images) > 0),
 	)
 
-	if &product == nil {
+	if product == nil {
 		ps.logger.Warn("Product not found", gecho.Field("id", id))
 		return nil, fmt.Errorf("product not found")
 	}
@@ -210,7 +210,7 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 			Pagination: database.Pagination{
 				Page:     page,
 				PageSize: pageSize,
-				Total:    len(cachedProducts), // This is approximate - real total would need separate query/cache
+				Total:    len(cachedProducts),
 			},
 			Filters: ProductListOptions{
 				Page:          page,
@@ -243,6 +243,43 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 			ps.logger.Warn("Failed to cache active products", gecho.Field("error", err))
 		}
 	}()
+
+	return result, nil
+}
+
+// GetProductsByIds retrieves multiple products by their IDs
+func (ps *ProductService) GetProductsByIds(ctx context.Context, ids []uuid.UUID) ([]*tables.Product, error) {
+	startTime := time.Now()
+
+	if len(ids) == 0 {
+		return []*tables.Product{}, nil
+	}
+
+	// Convert IDs to interface slice
+	idInterfaces := make([]any, len(ids))
+	for i, id := range ids {
+		idInterfaces[i] = id
+	}
+
+	query := database.Query[tables.Product](ps.db).
+		WhereIn("id", idInterfaces).
+		Timeout(10 * time.Second)
+
+	products, err := query.All(ctx)
+	if err != nil {
+		ps.logger.Error("Failed to fetch products by IDs",
+			gecho.Field("ids", ids),
+			gecho.Field("error", err),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+		return nil, fmt.Errorf("failed to fetch products by IDs: %w", err)
+	}
+
+	// Convert slice to pointer slice
+	result := make([]*tables.Product, len(products))
+	for i := range products {
+		result[i] = &products[i]
+	}
 
 	return result, nil
 }
@@ -489,14 +526,14 @@ func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Pro
 }
 
 type UpdateProductRequest struct {
-	Name        *string               `json:"name,omitempty"`
-	SKU         *string               `json:"sku,omitempty"`
-	Price       *uint64               `json:"price,omitempty"`
-	Discount    *uint64               `json:"discount,omitempty"`
-	Tax         *uint64               `json:"tax,omitempty"`
-	Description *string               `json:"description,omitempty"`
+	Name        *string               `json:"name,omitempty" validate:"omitempty,min=2,max=200"`
+	SKU         *string               `json:"sku,omitempty" validate:"omitempty,min=3,max=50"`
+	Price       *uint64               `json:"price,omitempty" validate:"omitempty,gte=0"`
+	Discount    *uint64               `json:"discount,omitempty" validate:"omitempty,gte=0"`
+	Tax         *uint64               `json:"tax,omitempty" validate:"omitempty,gte=0"`
+	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
 	IsActive    *bool                 `json:"is_active,omitempty"`
-	Images      []tables.ProductImage `json:"images,omitempty"`
+	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
 }
 
 func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID, req *UpdateProductRequest) error {
@@ -594,6 +631,12 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 		go func() {
 			if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
 				ps.logger.Warn("Failed to invalidate product caches after update",
+					gecho.Field("error", err),
+					gecho.Field("product_id", productID),
+				)
+			}
+			if err := ps.cacheService.InvalidateActiveProductsListCache(); err != nil {
+				ps.logger.Warn("Failed to invalidate active products list cache after product update",
 					gecho.Field("error", err),
 					gecho.Field("product_id", productID),
 				)

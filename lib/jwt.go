@@ -2,6 +2,7 @@ package lib
 
 import (
 	"fmt"
+	"mamabloemetjes_server/config"
 	"mamabloemetjes_server/structs"
 	"net/http"
 	"time"
@@ -76,7 +77,8 @@ func ParseToken(tokenStr string, isAccessToken bool, secret string) (*structs.Au
 	return nil, jwt.ErrInvalidKey
 }
 
-func ExtractClaims(r *http.Request, secret string) (*structs.AuthClaims, error) {
+func ExtractClaims(r *http.Request) (*structs.AuthClaims, error) {
+	secret := config.GetConfig().Auth.AccessTokenSecret
 	accessToken, err := GetCookieValue(AccessCookieName, r)
 	if err != nil {
 		return nil, err

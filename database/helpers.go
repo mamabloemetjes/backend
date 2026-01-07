@@ -106,9 +106,9 @@ func ReadOnlyTransaction(db *DB, ctx context.Context, fn func(bun.Tx) error) err
 
 // Pagination represents pagination parameters
 type Pagination struct {
-	Page     int `json:"page"`
-	PageSize int `json:"page_size"`
-	Total    int `json:"total"`
+	Page     int `json:"page" validate:"required,min=1"`
+	PageSize int `json:"page_size" validate:"required,min=1,max=100"`
+	Total    int `json:"total" validate:"min=0"`
 }
 
 // PaginationResult wraps paginated data with metadata
@@ -156,10 +156,10 @@ func Paginate[T any](q *QueryBuilder[T], ctx context.Context, page, pageSize int
 
 // CursorPagination represents cursor-based pagination parameters
 type CursorPagination struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	PrevCursor string `json:"prev_cursor,omitempty"`
+	NextCursor string `json:"next_cursor,omitempty" validate:"omitempty"`
+	PrevCursor string `json:"prev_cursor,omitempty" validate:"omitempty"`
 	HasMore    bool   `json:"has_more"`
-	PageSize   int    `json:"page_size"`
+	PageSize   int    `json:"page_size" validate:"required,min=1,max=100"`
 }
 
 // CursorPaginationResult wraps cursor-paginated data with metadata

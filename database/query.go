@@ -79,6 +79,16 @@ func Connect(logger *gecho.Logger) (*DB, error) {
 	}, nil
 }
 
+// Begin starts a new database transaction
+func (db *DB) Begin() (bun.Tx, error) {
+	return db.DB.Begin()
+}
+
+// BeginTx starts a new database transaction with context and options
+func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (bun.Tx, error) {
+	return db.DB.BeginTx(ctx, opts)
+}
+
 // Close closes the database connection
 func (db *DB) Close() error {
 	if err := db.DB.Close(); err != nil {

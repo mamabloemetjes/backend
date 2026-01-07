@@ -10,6 +10,13 @@ import (
 
 // HandleCSRF generates and sets a CSRF token
 func (ar *AuthRoutesManager) HandleCSRF(w http.ResponseWriter, r *http.Request) {
+	// Log request details for debugging
+	ar.logger.Info("CSRF token requested",
+		gecho.Field("origin", r.Header.Get("Origin")),
+		gecho.Field("host", r.Host),
+		gecho.Field("referer", r.Header.Get("Referer")),
+	)
+
 	// Generate a new CSRF token
 	token, err := lib.GenerateRandomToken()
 	if err != nil {
@@ -29,6 +36,7 @@ func (ar *AuthRoutesManager) HandleCSRF(w http.ResponseWriter, r *http.Request) 
 		gecho.Field("token_length", len(token)),
 		gecho.Field("token_preview", token[:min(10, len(token))]),
 		gecho.Field("expiry", expiry),
+		gecho.Field("cookie_header", w.Header().Get("Set-Cookie")),
 	)
 
 	// Return the token in the response as well

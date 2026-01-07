@@ -54,14 +54,18 @@ func ClearCookie(key string, w http.ResponseWriter) {
 // SetCSRFCookie sets a CSRF token cookie that is readable by JavaScript
 func SetCSRFCookie(val string, expiry time.Time, w http.ResponseWriter) {
 	isProduction := config.IsProduction()
+	// Use SameSiteNoneMode for cross-origin requests with Secure flag
+	// In development, use SameSiteLaxMode without Secure to allow localhost
 	sameSite := http.SameSiteLaxMode
 	if isProduction {
-		sameSite = http.SameSiteStrictMode
+		sameSite = http.SameSiteNoneMode
 	}
+
 	cookie := &http.Cookie{
 		Name:     CSRFCookieName,
 		Value:    val,
 		Expires:  expiry,
+		MaxAge:   int(time.Until(expiry).Seconds()),
 		Secure:   isProduction,
 		Path:     "/",
 		SameSite: sameSite,

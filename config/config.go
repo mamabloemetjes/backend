@@ -1,37 +1,44 @@
 package config
 
 import (
+	"fmt"
+	"log"
 	"mamabloemetjes_server/structs"
 	"sync"
 	"time"
+
+	"github.com/go-playground/validator/v10"
 )
 
 var (
 	configInstance *structs.Config
 	configOnce     sync.Once
+	validate       = validator.New()
 )
 
 func GetConfig() *structs.Config {
 	configOnce.Do(func() {
 		configInstance = &structs.Config{
 			Server: &structs.ServerConfig{
-				AppName:        getEnvAsString("APP_NAME", "Mamabloemetjes_no_env"),
-				Environment:    getEnvAsString("APP_ENV", "development"),
-				Port:           getEnvAsString("APP_PORT", ":8082"),
-				LogLevel:       getEnvAsString("APP_LOG_LEVEL", "info"),
-				ServerURL:      getEnvAsString("APP_SERVER_URL", "http://localhost:8082"),
-				FrontendURL:    getEnvAsString("APP_FRONTEND_URL", "http://localhost:3000"),
-				ReadTimeout:    getEnvAsTimeDuration("SERVER_READ_TIME_OUT", 15*time.Second),
-				WriteTimeout:   getEnvAsTimeDuration("SERVER_WRITE_TIME_OUT", 15*time.Second),
-				IdleTimeout:    getEnvAsTimeDuration("SERVER_IDLE_TIME_OUT", 60*time.Second),
-				MaxHeaderBytes: getEnvAsInt("SERVER_MAX_HEADER_BYTES", 1<<20), // 1 MB
+				AppName:           getEnvAsString("APP_NAME", "Mamabloemetjes_no_env"),
+				Environment:       getEnvAsString("APP_ENV", "development"),
+				Port:              getEnvAsString("APP_PORT", ":8082"),
+				LogLevel:          getEnvAsString("APP_LOG_LEVEL", "info"),
+				ServerURL:         getEnvAsString("APP_SERVER_URL", "http://localhost:8082"),
+				FrontendURL:       getEnvAsString("APP_FRONTEND_URL", "http://localhost:3000"),
+				ReadTimeout:       getEnvAsTimeDuration("SERVER_READ_TIME_OUT", 15*time.Second),
+				WriteTimeout:      getEnvAsTimeDuration("SERVER_WRITE_TIME_OUT", 15*time.Second),
+				IdleTimeout:       getEnvAsTimeDuration("SERVER_IDLE_TIME_OUT", 60*time.Second),
+				ReadHeaderTimeout: getEnvAsTimeDuration("SERVER_READ_HEADER_TIMEOUT", 10*time.Second),
+				MaxHeaderBytes:    getEnvAsInt("SERVER_MAX_HEADER_BYTES", 1<<20), // 1 MB
 			},
 			Cors: &structs.CorsConfig{
-				AllowOrigins:     getEnvAsSlice("CORS_ALLOW_ORIGINS", []string{"localhost", "http://localhost:3000"}),
-				AllowMethods:     getEnvAsSlice("CORS_ALLOW_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
-				AllowHeaders:     getEnvAsSlice("CORS_ALLOW_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-CSRF-Token"}),
-				AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", false),
-				ExposedHeaders:   getEnvAsSlice("CORS_EXPOSED_HEADERS", []string{"Content-Length", "Authorization"}),
+				AllowedOrigins:   getEnvAsSlice("CORS_ALLOW_ORIGINS", []string{"http://localhost:3000"}),
+				AllowedMethods:   getEnvAsSlice("CORS_ALLOW_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+				AllowedHeaders:   getEnvAsSlice("CORS_ALLOW_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-CSRF-Token"}),
+				AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", true),
+				ExposedHeaders:   getEnvAsSlice("CORS_EXPOSED_HEADERS", []string{"Content-Length", "Authorization", "Set-Cookie"}),
+				MaxAge:           getEnvAsInt("CORS_MAX_AGE", 600),
 			},
 			Database: &structs.DatabaseConfig{
 				Host:         getEnvAsString("DB_HOST", "localhost"),
@@ -86,12 +93,57 @@ func GetConfig() *structs.Config {
 			},
 			Email: &structs.EmailConfig{
 				ApiKey:                  getEnvAsString("EMAIL_API_KEY", "no_api_key"),
-				From:                    getEnvAsString("EMAIl_ADDRESS", "no_email"),
+				From:                    getEnvAsString("EMAIL_ADDRESS", "noreply@example.com"),
+				SupportEmail:            getEnvAsString("EMAIL_SUPPORT_ADDRESS", "support@example.com"),
+				OrderConfirmationFrom:   getEnvAsString("EMAIL_ORDER_CONFIRMATION_FROM", "orders@example.com"),
 				VerificationTokenExpiry: getEnvAsTimeDuration("EMAIL_VERIFICATION_TOKEN_EXPIRY", 15*time.Minute),
 			},
+			Encryption: &structs.EncryptionConfig{
+				Key: getEnvAsString("ENCRYPTION_KEY", ""),
+			},
+		}
+
+		// Validate the configuration
+		if err := validate.Struct(configInstance); err != nil {
+			log.Fatalf("Configuration validation failed: %v", err)
+		}
+
+		// Additional custom validations
+		if err := validateConfig(configInstance); err != nil {
+			log.Fatalf("Configuration validation failed: %v", err)
 		}
 	})
 	return configInstance
+}
+
+// validateConfig performs additional custom validation checks
+func validateConfig(cfg *structs.Config) error {
+	// Ensure MaxIdleConns doesn't exceed PoolSize for cache
+	if cfg.Cache.MaxIdleConns > cfg.Cache.PoolSize {
+		return fmt.Errorf("cache MaxIdleConns (%d) cannot exceed PoolSize (%d)", cfg.Cache.MaxIdleConns, cfg.Cache.PoolSize)
+	}
+
+	// Ensure MinIdleConns doesn't exceed MaxIdleConns for cache
+	if cfg.Cache.MinIdleConns > cfg.Cache.MaxIdleConns {
+		return fmt.Errorf("cache MinIdleConns (%d) cannot exceed MaxIdleConns (%d)", cfg.Cache.MinIdleConns, cfg.Cache.MaxIdleConns)
+	}
+
+	// Ensure DB MinConns doesn't exceed MaxConns
+	if cfg.Database.MinConns > cfg.Database.MaxConns {
+		return fmt.Errorf("database MinConns (%d) cannot exceed MaxConns (%d)", cfg.Database.MinConns, cfg.Database.MaxConns)
+	}
+
+	// Ensure MinRetryBackoff doesn't exceed MaxRetryBackoff
+	if cfg.Cache.MinRetryBackoff > cfg.Cache.MaxRetryBackoff {
+		return fmt.Errorf("cache MinRetryBackoff (%v) cannot exceed MaxRetryBackoff (%v)", cfg.Cache.MinRetryBackoff, cfg.Cache.MaxRetryBackoff)
+	}
+
+	// Ensure access token expiry is less than refresh token expiry
+	if cfg.Auth.AccessTokenExpiry >= cfg.Auth.RefreshTokenExpiry {
+		return fmt.Errorf("access token expiry (%v) must be less than refresh token expiry (%v)", cfg.Auth.AccessTokenExpiry, cfg.Auth.RefreshTokenExpiry)
+	}
+
+	return nil
 }
 
 func GetLogLevel() string {

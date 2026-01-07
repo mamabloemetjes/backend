@@ -49,7 +49,7 @@ func (mw *Middleware) CSRFMiddleware() func(http.Handler) http.Handler {
 			cookie, err := r.Cookie("csrf")
 			if err != nil {
 				mw.logger.Warn("CSRF cookie missing", gecho.Field("error", err), gecho.Field("path", r.URL.Path), gecho.Field("all_cookies", cookieNames))
-				http.Error(w, "csrf missing", http.StatusForbidden)
+				gecho.Forbidden(w, gecho.WithMessage("invalid csrf token"), gecho.Send())
 				return
 			}
 
