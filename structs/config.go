@@ -16,7 +16,7 @@ type Config struct {
 type ServerConfig struct {
 	AppName           string        `validate:"required,min=2,max=100"`                // Mamabloemetjes
 	Environment       string        `validate:"required,oneof=development production"` // development, production
-	Port              string        `validate:"required,min=4,max=10"`                 // :8082
+	Port              string        `validate:"required,min=4,max=10"`                 // :8081
 	LogLevel          string        `validate:"required,oneof=debug info warn error"`  // debug, info, warn, error
 	ServerURL         string        `validate:"required,url"`                          // Base URL of the server
 	FrontendURL       string        `validate:"required,url"`                          // Base URL of the frontend

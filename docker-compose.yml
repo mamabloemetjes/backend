@@ -14,7 +14,7 @@ services:
       - go-build-cache:/root/.cache/go-build
       - go-mod-cache:/go/pkg/mod
     ports:
-      - "8082:8082"
+      - "8081:8081"
     restart: unless-stopped
 
 networks:
