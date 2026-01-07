@@ -1,30 +1,48 @@
 package api
 
 import (
-	"mamabloemetjes_server/api/internal/health"
-	"mamabloemetjes_server/api/internal/products"
-	"mamabloemetjes_server/database"
+	"mamabloemetjes_server/api/admin"
+	"mamabloemetjes_server/api/auth"
+	"mamabloemetjes_server/api/debug"
+	"mamabloemetjes_server/api/health"
+	"mamabloemetjes_server/api/orders"
+	"mamabloemetjes_server/api/products"
 
-	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 )
 
 type routerManager struct {
 	productRoutes *products.ProductRoutesManager
 	healthRoutes  *health.HealthRoutesManager
+	authRoutes    *auth.AuthRoutesManager
+	adminRoutes   *admin.AdminRoutesManager
+	orderRoutes   *orders.OrderRoutesManager
+	debugRoutes   *debug.DebugRoutesManager
 }
 
 func NewRouterManager(
-	logger *gecho.Logger,
-	db *database.DB,
+	productRoutes *products.ProductRoutesManager,
+	healthRoutes *health.HealthRoutesManager,
+	authRoutes *auth.AuthRoutesManager,
+	adminRoutes *admin.AdminRoutesManager,
+	ordersRoutes *orders.OrderRoutesManager,
+	debugRoutes *debug.DebugRoutesManager,
 ) *routerManager {
 	return &routerManager{
-		productRoutes: products.NewProductRoutesManager(logger, db),
-		healthRoutes:  health.NewHealthRoutesManager(logger, db),
+		productRoutes: productRoutes,
+		healthRoutes:  healthRoutes,
+		authRoutes:    authRoutes,
+		adminRoutes:   adminRoutes,
+		debugRoutes:   debugRoutes,
+		orderRoutes:   ordersRoutes,
 	}
 }
 
 func (rm *routerManager) RegisterRoutes(r chi.Router) {
 	rm.productRoutes.RegisterRoutes(r)
 	rm.healthRoutes.RegisterRoutes(r)
+	rm.authRoutes.RegisterRoutes(r)
+	rm.adminRoutes.RegisterRoutes(r)
+	rm.orderRoutes.RegisterRoutes(r)
+	rm.debugRoutes.RegisterRoutes(r)
 }

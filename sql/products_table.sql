@@ -27,12 +27,6 @@ CREATE TABLE IF NOT EXISTS public.products (
     tax BIGINT NOT NULL DEFAULT 0 CHECK (tax >= 0),
     subtotal BIGINT NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
 
-    -- Product Attributes
-    size TEXT CHECK (size IN ('small', 'medium', 'large', '')),
-    colors TEXT[] NOT NULL DEFAULT '{}',
-    product_type TEXT CHECK (product_type IN ('flower', 'bouquet', '')),
-    stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
-
     -- Status
     is_active BOOLEAN NOT NULL DEFAULT true,
 
@@ -41,8 +35,9 @@ CREATE TABLE IF NOT EXISTS public.products (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 
     -- Constraint: Ensure pricing calculation is valid
+    -- Subtotal = Price - Discount + Tax
     CONSTRAINT check_price_calculation CHECK (
-        ABS(price - (subtotal + tax)) < 1
+        subtotal = (price - discount + tax)
     )
 ) TABLESPACE pg_default;
 
@@ -86,22 +81,9 @@ CREATE INDEX IF NOT EXISTS idx_products_active_created
     ON public.products USING btree (is_active, created_at DESC)
     TABLESPACE pg_default;
 
--- Covering index for product listings (includes common columns)
-CREATE INDEX IF NOT EXISTS idx_products_listing_cover
-    ON public.products USING btree (is_active, created_at DESC)
-    INCLUDE (id, name, sku, price, description, stock)
-    TABLESPACE pg_default
-    WHERE is_active = true;
-
 -- Index for active products only (partial index)
 CREATE INDEX IF NOT EXISTS idx_products_active_only
     ON public.products USING btree (created_at DESC, id)
-    TABLESPACE pg_default
-    WHERE is_active = true;
-
--- Index for inventory management
-CREATE INDEX IF NOT EXISTS idx_products_inventory
-    ON public.products USING btree (stock, is_active)
     TABLESPACE pg_default
     WHERE is_active = true;
 
@@ -110,23 +92,6 @@ CREATE INDEX IF NOT EXISTS idx_products_price
     ON public.products USING btree (price)
     TABLESPACE pg_default
     WHERE is_active = true;
-
--- Index for product type filtering
-CREATE INDEX IF NOT EXISTS idx_products_type
-    ON public.products USING btree (product_type, is_active)
-    TABLESPACE pg_default
-    WHERE product_type IS NOT NULL AND product_type != '';
-
--- Index for size filtering
-CREATE INDEX IF NOT EXISTS idx_products_size
-    ON public.products USING btree (size, is_active)
-    TABLESPACE pg_default
-    WHERE size IS NOT NULL AND size != '';
-
--- GIN index for array operations on colors
-CREATE INDEX IF NOT EXISTS idx_products_colors_gin
-    ON public.products USING gin (colors)
-    TABLESPACE pg_default;
 
 -- Full-text search index for name and description
 CREATE INDEX IF NOT EXISTS idx_products_search
@@ -204,7 +169,7 @@ CREATE TRIGGER ensure_primary_image
 -- ============================================================================
 
 COMMENT ON TABLE public.products IS
-    'Main products table storing all product information including flowers and bouquets';
+    'Main products table storing all product information for premade bouquets';
 
 COMMENT ON COLUMN public.products.price IS
     'Product price stored in cents for precision (e.g., $19.99 = 1999)';
@@ -216,31 +181,16 @@ COMMENT ON COLUMN public.products.tax IS
     'Tax amount in cents';
 
 COMMENT ON COLUMN public.products.subtotal IS
-    'Subtotal in cents (price - discount + tax)';
+    'Final amount in cents after applying discount and adding tax (price - discount + tax)';
 
 COMMENT ON COLUMN public.products.sku IS
     'Stock Keeping Unit - unique identifier for inventory management';
-
-COMMENT ON COLUMN public.products.colors IS
-    'Array of color values for the product';
-
-COMMENT ON COLUMN public.products.stock IS
-    'Current inventory stock level';
 
 COMMENT ON TABLE public.product_images IS
     'Product images with support for multiple images per product';
 
 COMMENT ON COLUMN public.product_images.is_primary IS
     'Indicates if this is the primary/featured image for the product';
-
--- ============================================================================
--- GRANTS (Adjust based on your user roles)
--- ============================================================================
-
--- Example: Grant permissions to application user
--- GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO your_app_user;
--- GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_images TO your_app_user;
--- GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO your_app_user;
 
 -- ============================================================================
 -- ANALYTICS/MONITORING VIEWS (Optional but recommended)
@@ -258,22 +208,6 @@ GROUP BY p.id;
 
 COMMENT ON VIEW v_products_with_image_count IS
     'Convenience view showing products with their image counts and primary image URL';
-
--- View for low stock alerts
-CREATE OR REPLACE VIEW v_low_stock_products AS
-SELECT
-    id,
-    name,
-    sku,
-    stock,
-    is_active
-FROM public.products
-WHERE is_active = true
-  AND stock <= 10
-ORDER BY stock ASC, name ASC;
-
-COMMENT ON VIEW v_low_stock_products IS
-    'Products with low inventory (10 or fewer items in stock)';
 
 -- ============================================================================
 -- END OF SCHEMA

@@ -2,87 +2,99 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
-	"log"
 	"mamabloemetjes_server/config"
 	"time"
 
-	"github.com/go-pg/pg/v10"
+	"github.com/MonkyMars/gecho"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-// DB wraps the go-pg database connection with additional functionality
+// DB wraps the bun database connection with additional functionality
 type DB struct {
-	*pg.DB
+	*bun.DB
+	sqlDB  *sql.DB
+	logger *gecho.Logger
 }
 
-var instance *DB
-
 // Connect establishes a connection to the database using centralized configuration
-func Connect() (*DB, error) {
-	logger := config.GetLogger()
+func Connect(logger *gecho.Logger) (*DB, error) {
 	cfg := config.GetConfig()
 	dbCfg := cfg.Database
 
-	opts := &pg.Options{
-		Addr:     fmt.Sprintf("%s:%d", dbCfg.Host, dbCfg.Port),
-		User:     dbCfg.User,
-		Password: dbCfg.Password,
-		Database: dbCfg.Name,
-	}
+	// Build DSN for pgdriver
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=require",
+		dbCfg.User,
+		dbCfg.Password,
+		dbCfg.Host,
+		dbCfg.Port,
+		dbCfg.Name,
+	)
 
-	// Apply pool settings from configuration
-	opts.PoolSize = dbCfg.MaxConns
-	opts.MinIdleConns = dbCfg.MinConns
-	opts.MaxConnAge = dbCfg.MaxLifetime
-	opts.ReadTimeout = dbCfg.ReadTimeout
-	opts.WriteTimeout = dbCfg.WriteTimeout
+	// Create pgdriver connector with connection pool settings
+	connector := pgdriver.NewConnector(
+		pgdriver.WithDSN(dsn),
+		pgdriver.WithTimeout(30*time.Second),
+		pgdriver.WithDialTimeout(10*time.Second),
+		pgdriver.WithReadTimeout(dbCfg.ReadTimeout),
+		pgdriver.WithWriteTimeout(dbCfg.WriteTimeout),
+	)
 
-	db := pg.Connect(opts)
+	// Create SQL DB with connection pooling
+	sqlDB := sql.OpenDB(connector)
+
+	// Configure connection pool
+	sqlDB.SetMaxOpenConns(dbCfg.MaxConns)
+	sqlDB.SetMaxIdleConns(dbCfg.MinConns)
+	sqlDB.SetConnMaxLifetime(dbCfg.MaxLifetime)
+	sqlDB.SetConnMaxIdleTime(dbCfg.MaxIdleTime)
+
+	// Create Bun DB with PostgreSQL dialect
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+
+	// Add query hook for logging and monitoring
+	bunDB.AddQueryHook(&queryHook{logger: logger})
 
 	// Test the connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := db.Ping(ctx); err != nil {
+	if err := bunDB.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	logger.Info("Connected to database successfully")
+	logger.Info("Connected to database successfully",
+		gecho.Field("host", dbCfg.Host),
+		gecho.Field("database", dbCfg.Name),
+		gecho.Field("max_conns", dbCfg.MaxConns),
+	)
 
-	return &DB{db}, nil
+	return &DB{
+		DB:     bunDB,
+		sqlDB:  sqlDB,
+		logger: logger,
+	}, nil
 }
 
-// Initialize sets up the global database instance using centralized configuration
-func Initialize() error {
-	db, err := Connect()
-	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-
-	instance = db
-	return nil
+// Begin starts a new database transaction
+func (db *DB) Begin() (bun.Tx, error) {
+	return db.DB.Begin()
 }
 
-// GetInstance returns the global database instance
-// This is the primary way to access the database throughout the application
-func GetInstance() *DB {
-	if instance == nil {
-		log.Fatal("Database instance is not initialized. Call Initialize() first.")
-	}
-	return instance
+// BeginTx starts a new database transaction with context and options
+func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (bun.Tx, error) {
+	return db.DB.BeginTx(ctx, opts)
 }
 
 // Close closes the database connection
 func (db *DB) Close() error {
-	return db.DB.Close()
-}
-
-// CloseInstance closes the global database instance
-func CloseInstance() error {
-	if instance != nil {
-		return instance.Close()
+	if err := db.DB.Close(); err != nil {
+		return err
 	}
-	return nil
+	return db.sqlDB.Close()
 }
 
 // Health checks the database connection health
@@ -90,10 +102,43 @@ func (db *DB) Health() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	return db.Ping(ctx)
+	return db.PingContext(ctx)
 }
 
 // GetStats returns connection pool statistics for monitoring
-func (db *DB) GetStats() *pg.PoolStats {
-	return db.PoolStats()
+func (db *DB) GetStats() sql.DBStats {
+	return db.sqlDB.Stats()
+}
+
+// queryHook implements bun.QueryHook to monitor queries and handle errors
+type queryHook struct {
+	logger *gecho.Logger
+}
+
+func (h *queryHook) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
+	return ctx
+}
+
+func (h *queryHook) AfterQuery(ctx context.Context, event *bun.QueryEvent) {
+	duration := time.Since(event.StartTime)
+
+	// Log slow queries (over 400ms)
+	if duration > 400*time.Millisecond {
+		h.logger.Warn("Slow database query detected",
+			gecho.Field("query", event.Query),
+			gecho.Field("duration", duration),
+		)
+	}
+
+	// Log query errors with context
+	if event.Err != nil {
+		// Don't log "no rows" as an error (it's expected)
+		if event.Err != sql.ErrNoRows {
+			h.logger.Error("Database query error",
+				gecho.Field("error", event.Err),
+				gecho.Field("query", event.Query),
+				gecho.Field("duration", duration),
+			)
+		}
+	}
 }

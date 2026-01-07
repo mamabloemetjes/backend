@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/uptrace/bun"
 )
 
 // JoinType represents the type of SQL JOIN operation
@@ -37,6 +39,7 @@ func (jt JoinType) String() string {
 type QueryBuilder[T any] struct {
 	db        *DB
 	ctx       context.Context
+	bunQuery  *bun.SelectQuery
 	model     *T
 	tableName string
 
@@ -58,11 +61,11 @@ type QueryBuilder[T any] struct {
 	distinct  bool
 	forUpdate bool
 
-	// Transaction
-	tx any
-
 	// Timeout
 	timeout time.Duration
+
+	// Retry configuration
+	retryConfig RetryConfig
 }
 
 // JoinClause represents a SQL JOIN operation
@@ -151,6 +154,7 @@ func Query[T any](db *DB) *QueryBuilder[T] {
 		groupBys:    []string{},
 		havings:     []*WhereClause{},
 		relations:   []string{},
+		retryConfig: DefaultRetryConfig(),
 	}
 }
 
@@ -379,8 +383,8 @@ func (q *QueryBuilder[T]) Offset(offset int) *QueryBuilder[T] {
 	return q
 }
 
-// With specifies a relation to preload (go-pg style)
-func (q *QueryBuilder[T]) With(relation string) *QueryBuilder[T] {
+// Relation specifies a relation to preload (Bun style)
+func (q *QueryBuilder[T]) Relation(relation string, apply ...func(*bun.SelectQuery) *bun.SelectQuery) *QueryBuilder[T] {
 	q.relations = append(q.relations, relation)
 	return q
 }
@@ -394,6 +398,18 @@ func (q *QueryBuilder[T]) ForUpdate() *QueryBuilder[T] {
 // Timeout sets a timeout for the query
 func (q *QueryBuilder[T]) Timeout(duration time.Duration) *QueryBuilder[T] {
 	q.timeout = duration
+	return q
+}
+
+// DisableRetry disables automatic retry for this query
+func (q *QueryBuilder[T]) DisableRetry() *QueryBuilder[T] {
+	q.retryConfig.EnableRetry = false
+	return q
+}
+
+// WithRetryConfig sets custom retry configuration
+func (q *QueryBuilder[T]) WithRetryConfig(config RetryConfig) *QueryBuilder[T] {
+	q.retryConfig = config
 	return q
 }
 
@@ -502,4 +518,173 @@ func (j *JoinClause) toSQL() string {
 	}
 
 	return sb.String()
+}
+
+// buildBunQuery builds a Bun SelectQuery from the QueryBuilder
+func (q *QueryBuilder[T]) buildBunQuery() *bun.SelectQuery {
+	var model T
+	return q.buildBunQueryWithModel(&model)
+}
+
+// buildBunQueryWithModel builds a Bun SelectQuery with a specific model
+func (q *QueryBuilder[T]) buildBunQueryWithModel(model any) *bun.SelectQuery {
+	query := q.db.NewSelect().Model(model)
+
+	// Apply table name if specified
+	if q.tableName != "" {
+		query = query.Table(q.tableName)
+	}
+
+	// Apply SELECT columns
+	if len(q.selectCols) > 0 {
+		query = query.Column(q.selectCols...)
+	}
+
+	// Apply DISTINCT
+	if q.distinct {
+		query = query.Distinct()
+	}
+
+	// Apply WHERE conditions
+	query = q.applyWhereConditions(query)
+
+	// Apply JOINs
+	for _, join := range q.joins {
+		query = query.Join(join.toSQL())
+	}
+
+	// Apply GROUP BY
+	if len(q.groupBys) > 0 {
+		query = query.Group(q.groupBys...)
+	}
+
+	// Apply HAVING
+	for _, having := range q.havings {
+		if having.IsRaw {
+			query = query.Having(having.RawSQL, having.RawArgs...)
+		} else {
+			query = query.Having(fmt.Sprintf("%s %s ?", having.Column, having.Operator), having.Value)
+		}
+	}
+
+	// Apply ORDER BY
+	for _, order := range q.orders {
+		query = query.Order(fmt.Sprintf("%s %s", order.Column, order.Direction))
+	}
+
+	// Apply LIMIT
+	if q.limitVal != nil {
+		query = query.Limit(*q.limitVal)
+	}
+
+	// Apply OFFSET
+	if q.offsetVal != nil {
+		query = query.Offset(*q.offsetVal)
+	}
+
+	// Apply relations (preloading)
+	for _, relation := range q.relations {
+		query = query.Relation(relation)
+	}
+
+	// Apply FOR UPDATE
+	if q.forUpdate {
+		query = query.For("UPDATE")
+	}
+
+	return query
+}
+
+// applyWhereConditions applies WHERE conditions to a Bun query
+func (q *QueryBuilder[T]) applyWhereConditions(query *bun.SelectQuery) *bun.SelectQuery {
+	// Apply simple WHERE conditions
+	for _, where := range q.wheres {
+		if where.IsRaw {
+			query = query.Where(where.RawSQL, where.RawArgs...)
+		} else {
+			// Handle IN operator specially
+			if where.Operator == "IN" {
+				if where.Negate {
+					query = query.Where("? NOT IN (?)", bun.Ident(where.Column), bun.In(where.Value))
+				} else {
+					query = query.Where("? IN (?)", bun.Ident(where.Column), bun.In(where.Value))
+				}
+				continue
+			}
+
+			var condition string
+			if where.Negate {
+				condition = fmt.Sprintf("NOT (%s %s ?)", where.Column, where.Operator)
+			} else {
+				if where.Operator == "IS NULL" || where.Operator == "IS NOT NULL" {
+					condition = fmt.Sprintf("%s %s", where.Column, where.Operator)
+					query = query.Where(condition)
+					continue
+				}
+				condition = fmt.Sprintf("%s %s ?", where.Column, where.Operator)
+			}
+			query = query.Where(condition, where.Value)
+		}
+	}
+
+	// Apply WHERE groups
+	for _, group := range q.whereGroups {
+		query = q.applyWhereGroup(query, group)
+	}
+
+	return query
+}
+
+// applyWhereGroup applies a WHERE group to a Bun query
+func (q *QueryBuilder[T]) applyWhereGroup(query *bun.SelectQuery, group *WhereGroup) *bun.SelectQuery {
+	if len(group.Conditions) == 0 && len(group.Groups) == 0 {
+		return query
+	}
+
+	var conditions []string
+	var args []any
+
+	// Build conditions
+	for _, cond := range group.Conditions {
+		if cond.IsRaw {
+			conditions = append(conditions, cond.RawSQL)
+			args = append(args, cond.RawArgs...)
+		} else {
+			var condStr string
+			if cond.Operator == "IS NULL" || cond.Operator == "IS NOT NULL" {
+				condStr = fmt.Sprintf("%s %s", cond.Column, cond.Operator)
+			} else {
+				condStr = fmt.Sprintf("%s %s ?", cond.Column, cond.Operator)
+				args = append(args, cond.Value)
+			}
+			conditions = append(conditions, condStr)
+		}
+	}
+
+	// Build group SQL
+	if len(conditions) > 0 {
+		groupSQL := "(" + joinStrings(conditions, " "+group.Connector+" ") + ")"
+		if group.Negate {
+			groupSQL = "NOT " + groupSQL
+		}
+		query = query.Where(groupSQL, args...)
+	}
+
+	return query
+}
+
+// Helper function to join strings
+func joinStrings(strs []string, sep string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+	if len(strs) == 1 {
+		return strs[0]
+	}
+
+	result := strs[0]
+	for i := 1; i < len(strs); i++ {
+		result += sep + strs[i]
+	}
+	return result
 }

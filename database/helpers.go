@@ -2,18 +2,24 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/go-pg/pg/v10"
+	"github.com/uptrace/bun"
 )
 
-// RawQuery executes a raw SQL query and returns results
-func RawQuery[T any](db *DB, ctx context.Context, sql string, args ...any) ([]T, error) {
+// RawQuery executes a raw SQL query and returns results with automatic retry
+func RawQuery[T any](db *DB, ctx context.Context, query string, args ...any) ([]T, error) {
 	start := time.Now()
 	var data []T
 
-	_, err := db.QueryContext(ctx, &data, sql, args...)
+	err := WithRetry(ctx, func() error {
+		data = nil // Reset on retry
+		return db.NewRaw(query, args...).Scan(ctx, &data)
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute raw query: %w (took %v)", err, time.Since(start))
 	}
@@ -21,14 +27,17 @@ func RawQuery[T any](db *DB, ctx context.Context, sql string, args ...any) ([]T,
 	return data, nil
 }
 
-// RawQueryOne executes a raw SQL query and returns a single result
-func RawQueryOne[T any](db *DB, ctx context.Context, sql string, args ...any) (*T, error) {
+// RawQueryOne executes a raw SQL query and returns a single result with automatic retry
+func RawQueryOne[T any](db *DB, ctx context.Context, query string, args ...any) (*T, error) {
 	start := time.Now()
 	var data T
 
-	_, err := db.QueryOneContext(ctx, &data, sql, args...)
+	err := WithRetry(ctx, func() error {
+		return db.NewRaw(query, args...).Scan(ctx, &data)
+	})
+
 	if err != nil {
-		if err == pg.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to execute raw query: %w (took %v)", err, time.Since(start))
@@ -37,52 +46,69 @@ func RawQueryOne[T any](db *DB, ctx context.Context, sql string, args ...any) (*
 	return &data, nil
 }
 
-// RawExec executes a raw SQL command (INSERT, UPDATE, DELETE) without returning data
-func RawExec(db *DB, ctx context.Context, sql string, args ...any) (int, error) {
+// RawExec executes a raw SQL command (INSERT, UPDATE, DELETE) without returning data with automatic retry
+func RawExec(db *DB, ctx context.Context, query string, args ...any) (int, error) {
 	start := time.Now()
+	var rowsAffected int64
 
-	res, err := db.ExecContext(ctx, sql, args...)
+	err := WithRetry(ctx, func() error {
+		res, err := db.ExecContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		rowsAffected, err = res.RowsAffected()
+		return err
+	})
+
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute raw command: %w (took %v)", err, time.Since(start))
 	}
 
-	return res.RowsAffected(), nil
+	return int(rowsAffected), nil
 }
 
-// Transaction executes a function within a database transaction
-func Transaction(ctx context.Context, fn func(*pg.Tx) error) error {
-	db := GetInstance()
-	if db == nil {
-		return fmt.Errorf("database instance not initialized")
-	}
-
-	return db.RunInTransaction(ctx, func(tx *pg.Tx) error {
-		return fn(tx)
+// Transaction executes a function within a database transaction with automatic retry
+func Transaction(db *DB, ctx context.Context, fn func(bun.Tx) error) error {
+	return WithRetry(ctx, func() error {
+		return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
+			return fn(tx)
+		})
 	})
 }
 
-// TransactionWithResult executes a function within a transaction and returns a result
-func TransactionWithResult[T any](ctx context.Context, fn func(*pg.Tx) (T, error)) (T, error) {
+// TransactionWithResult executes a function within a transaction and returns a result with automatic retry
+func TransactionWithResult[T any](db *DB, ctx context.Context, fn func(bun.Tx) (T, error)) (T, error) {
 	var result T
-	db := GetInstance()
-	if db == nil {
-		return result, fmt.Errorf("database instance not initialized")
-	}
-
-	err := db.RunInTransaction(ctx, func(tx *pg.Tx) error {
-		var err error
-		result, err = fn(tx)
-		return err
+	err := WithRetry(ctx, func() error {
+		return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
+			var err error
+			result, err = fn(tx)
+			return err
+		})
 	})
 
 	return result, err
 }
 
+// TransactionWithOptions executes a transaction with custom options
+func TransactionWithOptions(db *DB, ctx context.Context, opts *sql.TxOptions, fn func(bun.Tx) error) error {
+	return WithRetry(ctx, func() error {
+		return db.RunInTx(ctx, opts, func(ctx context.Context, tx bun.Tx) error {
+			return fn(tx)
+		})
+	})
+}
+
+// ReadOnlyTransaction executes a read-only transaction
+func ReadOnlyTransaction(db *DB, ctx context.Context, fn func(bun.Tx) error) error {
+	return TransactionWithOptions(db, ctx, &sql.TxOptions{ReadOnly: true}, fn)
+}
+
 // Pagination represents pagination parameters
 type Pagination struct {
-	Page     int `json:"page"`
-	PageSize int `json:"page_size"`
-	Total    int `json:"total"`
+	Page     int `json:"page" validate:"required,min=1"`
+	PageSize int `json:"page_size" validate:"required,min=1,max=100"`
+	Total    int `json:"total" validate:"min=0"`
 }
 
 // PaginationResult wraps paginated data with metadata
@@ -130,10 +156,10 @@ func Paginate[T any](q *QueryBuilder[T], ctx context.Context, page, pageSize int
 
 // CursorPagination represents cursor-based pagination parameters
 type CursorPagination struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	PrevCursor string `json:"prev_cursor,omitempty"`
+	NextCursor string `json:"next_cursor,omitempty" validate:"omitempty"`
+	PrevCursor string `json:"prev_cursor,omitempty" validate:"omitempty"`
 	HasMore    bool   `json:"has_more"`
-	PageSize   int    `json:"page_size"`
+	PageSize   int    `json:"page_size" validate:"required,min=1,max=100"`
 }
 
 // CursorPaginationResult wraps cursor-paginated data with metadata
@@ -235,31 +261,27 @@ func BatchProcess[T any](ctx context.Context, query *QueryBuilder[T], batchSize 
 func Upsert[T any](db *DB, ctx context.Context, data *T, conflictColumn string, updateColumns ...string) (*T, error) {
 	start := time.Now()
 
-	// Build the base insert query
-	pgQuery := db.ModelContext(ctx, data)
+	err := WithRetry(ctx, func() error {
+		query := db.NewInsert().Model(data)
 
-	// Build ON CONFLICT clause
-	conflictClause := fmt.Sprintf("(%s) DO UPDATE", conflictColumn)
+		// Build ON CONFLICT clause
+		query = query.On(fmt.Sprintf("CONFLICT (%s)", conflictColumn))
 
-	// Add SET clause for update columns
-	if len(updateColumns) > 0 {
-		setClause := " SET "
-		for i, col := range updateColumns {
-			if i > 0 {
-				setClause += ", "
+		if len(updateColumns) > 0 {
+			// Update specified columns
+			query = query.On("DO UPDATE")
+			for _, col := range updateColumns {
+				query = query.Set(fmt.Sprintf("%s = EXCLUDED.%s", col, col))
 			}
-			setClause += fmt.Sprintf("%s = EXCLUDED.%s", col, col)
+		} else {
+			// Do nothing on conflict
+			query = query.On("DO NOTHING")
 		}
-		conflictClause += setClause
-	} else {
-		// If no columns specified, update all columns
-		conflictClause += " DO NOTHING"
-	}
 
-	pgQuery = pgQuery.OnConflict(conflictClause)
+		_, err := query.Exec(ctx)
+		return err
+	})
 
-	// Execute upsert
-	_, err := pgQuery.Insert()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute upsert: %w (took %v)", err, time.Since(start))
 	}
@@ -275,31 +297,27 @@ func BulkUpsert[T any](db *DB, ctx context.Context, data []T, conflictColumn str
 		return data, nil
 	}
 
-	// Build the base insert query
-	pgQuery := db.ModelContext(ctx, &data)
+	err := WithRetry(ctx, func() error {
+		query := db.NewInsert().Model(&data)
 
-	// Build ON CONFLICT clause
-	conflictClause := fmt.Sprintf("(%s) DO UPDATE", conflictColumn)
+		// Build ON CONFLICT clause
+		query = query.On(fmt.Sprintf("CONFLICT (%s)", conflictColumn))
 
-	// Add SET clause for update columns
-	if len(updateColumns) > 0 {
-		setClause := " SET "
-		for i, col := range updateColumns {
-			if i > 0 {
-				setClause += ", "
+		if len(updateColumns) > 0 {
+			// Update specified columns
+			query = query.On("DO UPDATE")
+			for _, col := range updateColumns {
+				query = query.Set(fmt.Sprintf("%s = EXCLUDED.%s", col, col))
 			}
-			setClause += fmt.Sprintf("%s = EXCLUDED.%s", col, col)
+		} else {
+			// Do nothing on conflict
+			query = query.On("DO NOTHING")
 		}
-		conflictClause += setClause
-	} else {
-		// If no columns specified, update all columns
-		conflictClause += " DO NOTHING"
-	}
 
-	pgQuery = pgQuery.OnConflict(conflictClause)
+		_, err := query.Exec(ctx)
+		return err
+	})
 
-	// Execute bulk upsert
-	_, err := pgQuery.Insert()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute bulk upsert: %w (took %v)", err, time.Since(start))
 	}
@@ -341,79 +359,87 @@ func Chunk[T any](ctx context.Context, query *QueryBuilder[T], chunkSize int, fn
 	return nil
 }
 
-// Pluck extracts a single column from query results
-func Pluck[T any, R any](ctx context.Context, query *QueryBuilder[T], column string) ([]R, error) {
-	var results []R
-
-	// Execute query with only the specified column
-	_, err := query.Select(column).All(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// This is a simplified version - in practice you'd need reflection
-	// to extract the column value from each struct
-	return results, fmt.Errorf("pluck not fully implemented - use Select() with specific columns")
-}
-
 // FirstOrCreate finds the first record matching conditions or creates it
-func FirstOrCreate[T any](db *DB, ctx context.Context, conditions map[string]any, defaults map[string]any) (*T, error) {
+func FirstOrCreate[T any](db *DB, ctx context.Context, search map[string]any, defaults map[string]any, result *T) error {
 	// Try to find existing record
 	q := Query[T](db)
-	for key, value := range conditions {
+	for key, value := range search {
 		q = q.Where(key, value)
 	}
 
 	existing, err := q.First(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if existing != nil {
-		return existing, nil
+		*result = *existing
+		return nil
 	}
 
-	// Record doesn't exist, create it
-	// Merge conditions and defaults
-	data := make(map[string]any)
-	for k, v := range conditions {
-		data[k] = v
-	}
-	for k, v := range defaults {
-		data[k] = v
-	}
+	// Record doesn't exist, create it using a transaction
+	return Transaction(db, ctx, func(tx bun.Tx) error {
+		// Merge search and defaults
+		query := tx.NewInsert().Model(result)
 
-	// Note: This is simplified - in practice you'd need to convert map to struct
-	return nil, fmt.Errorf("firstOrCreate not fully implemented - use Insert() directly")
+		_, err := query.Exec(ctx)
+		return err
+	})
 }
 
 // UpdateOrCreate updates an existing record or creates a new one
-func UpdateOrCreate[T any](db *DB, ctx context.Context, conditions map[string]any, data map[string]any) (*T, error) {
+func UpdateOrCreate[T any](db *DB, ctx context.Context, search map[string]any, updates map[string]any, result *T) error {
 	// Try to find and update existing record
 	q := Query[T](db)
-	for key, value := range conditions {
+	for key, value := range search {
 		q = q.Where(key, value)
 	}
 
-	results, err := q.UpdateReturning(ctx, data)
+	results, err := q.UpdateReturning(ctx, updates)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if len(results) > 0 {
-		return &results[0], nil
+		*result = results[0]
+		return nil
 	}
 
-	// Record doesn't exist, create it
-	// Merge conditions and data
-	merged := make(map[string]any)
-	for k, v := range conditions {
-		merged[k] = v
-	}
-	for k, v := range data {
-		merged[k] = v
+	// Record doesn't exist, create it using a transaction
+	return Transaction(db, ctx, func(tx bun.Tx) error {
+		query := tx.NewInsert().Model(result)
+		_, err := query.Exec(ctx)
+		return err
+	})
+}
+
+// BulkInsertWithBatch inserts records in batches for better performance
+func BulkInsertWithBatch[T any](db *DB, ctx context.Context, data []T, batchSize int) error {
+	if len(data) == 0 {
+		return nil
 	}
 
-	// Note: This is simplified - in practice you'd need to convert map to struct
-	return nil, fmt.Errorf("updateOrCreate not fully implemented - use Insert() directly")
+	if batchSize < 1 {
+		batchSize = 1000
+	}
+
+	for i := 0; i < len(data); i += batchSize {
+		end := i + batchSize
+		if end > len(data) {
+			end = len(data)
+		}
+
+		batch := data[i:end]
+
+		err := WithRetry(ctx, func() error {
+			_, err := db.NewInsert().Model(&batch).Exec(ctx)
+			return err
+		})
+
+		if err != nil {
+			return fmt.Errorf("failed to insert batch at index %d: %w", i, err)
+		}
+	}
+
+	return nil
 }

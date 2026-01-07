@@ -4,21 +4,25 @@ import (
 	"context"
 	"fmt"
 	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/structs"
+	"mamabloemetjes_server/structs/tables"
 	"time"
 
 	"github.com/MonkyMars/gecho"
+	"github.com/google/uuid"
+	"github.com/uptrace/bun"
 )
 
 type ProductService struct {
-	logger *gecho.Logger
-	db     *database.DB
+	logger       *gecho.Logger
+	db           *database.DB
+	cacheService *CacheService
 }
 
-func NewProductService(logger *gecho.Logger, db *database.DB) *ProductService {
+func NewProductService(logger *gecho.Logger, db *database.DB, cacheService *CacheService) *ProductService {
 	return &ProductService{
-		logger: logger,
-		db:     db,
+		logger:       logger,
+		db:           db,
+		cacheService: cacheService,
 	}
 }
 
@@ -30,12 +34,8 @@ type ProductListOptions struct {
 
 	// Filters
 	IsActive      *bool      `json:"is_active,omitempty"`      // Filter by active status
-	ProductType   string     `json:"product_type,omitempty"`   // Filter by product type (flower, bouquet)
 	MinPrice      *uint64    `json:"min_price,omitempty"`      // Minimum price in cents
 	MaxPrice      *uint64    `json:"max_price,omitempty"`      // Maximum price in cents
-	Size          string     `json:"size,omitempty"`           // Filter by size
-	Colors        []string   `json:"colors,omitempty"`         // Filter by colors (OR condition)
-	InStock       *bool      `json:"in_stock,omitempty"`       // Only products with stock > 0
 	SearchTerm    string     `json:"search_term,omitempty"`    // Search in name, description, SKU
 	SKUs          []string   `json:"skus,omitempty"`           // Filter by specific SKUs
 	ExcludeSKUs   []string   `json:"exclude_skus,omitempty"`   // Exclude specific SKUs
@@ -43,7 +43,7 @@ type ProductListOptions struct {
 	CreatedBefore *time.Time `json:"created_before,omitempty"` // Products created before this date
 
 	// Sorting
-	SortBy        string `json:"sort_by"`        // Field to sort by (created_at, price, name, stock)
+	SortBy        string `json:"sort_by"`        // Field to sort by (created_at, price, name)
 	SortDirection string `json:"sort_direction"` // ASC or DESC
 
 	// Relations
@@ -55,7 +55,7 @@ type ProductListOptions struct {
 
 // ProductListResult wraps the product list response with metadata
 type ProductListResult struct {
-	Products   []structs.Product   `json:"products"`
+	Products   []tables.Product    `json:"products"`
 	Pagination database.Pagination `json:"pagination"`
 	Filters    ProductListOptions  `json:"filters"`
 	QueryTime  time.Duration       `json:"query_time"`
@@ -87,7 +87,7 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 	}
 
 	// Build the query
-	query := database.Query[structs.Product](ps.db)
+	query := database.Query[tables.Product](ps.db)
 
 	// Apply filters
 	query = ps.applyFilters(query, opts)
@@ -97,7 +97,7 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 
 	// Preload images if requested
 	if opts.IncludeImages {
-		query = query.With("Images")
+		query = query.Relation("Images")
 	}
 
 	// Execute paginated query
@@ -130,18 +130,29 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 }
 
 // GetProductByID retrieves a single product by ID with optional image preloading
-func (ps *ProductService) GetProductByID(ctx context.Context, id string, includeImages bool) (*structs.Product, error) {
+func (ps *ProductService) GetProductByID(ctx context.Context, id string, includeImages bool) (*tables.Product, error) {
 	startTime := time.Now()
 
-	query := database.Query[structs.Product](ps.db).
+	// Try to get from cache first
+	cachedProduct, err := ps.cacheService.GetProductByID(id, includeImages)
+	if err != nil {
+		ps.logger.Warn("Failed to get product from cache", gecho.Field("error", err), gecho.Field("id", id))
+	} else if cachedProduct != nil {
+		ps.logger.Debug("Product retrieved from cache", gecho.Field("id", id), gecho.Field("duration", time.Since(startTime)))
+		return cachedProduct, nil
+	}
+
+	// Cache miss - fetch from database
+	query := database.Query[tables.Product](ps.db).
 		Where("id", id).
 		Timeout(5 * time.Second)
 
-	if includeImages {
-		query = query.With("Images")
-	}
+	query = query.Relation("Images", func(q *bun.SelectQuery) *bun.SelectQuery {
+		return q.OrderExpr("is_primary DESC")
+	})
 
 	product, err := query.First(ctx)
+
 	if err != nil {
 		ps.logger.Error("Failed to fetch product by ID",
 			gecho.Field("id", id),
@@ -151,10 +162,24 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 		return nil, fmt.Errorf("failed to fetch product: %w", err)
 	}
 
+	ps.logger.Debug("Product fetched from database",
+		gecho.Field("id", id),
+		gecho.Field("duration", time.Since(startTime)),
+		gecho.Field("include_images", includeImages),
+		gecho.Field("has_images", len(product.Images) > 0),
+	)
+
 	if product == nil {
 		ps.logger.Warn("Product not found", gecho.Field("id", id))
 		return nil, fmt.Errorf("product not found")
 	}
+
+	// Cache the product asynchronously
+	go func() {
+		if err := ps.cacheService.SetProductByID(product, includeImages); err != nil {
+			ps.logger.Warn("Failed to cache product", gecho.Field("error", err), gecho.Field("id", id))
+		}
+	}()
 
 	ps.logger.Debug("Product fetched by ID",
 		gecho.Field("id", id),
@@ -163,8 +188,40 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 	return product, nil
 }
 
-// GetActiveProducts is a convenience method to get only active products
+// GetActiveProducts is a convenience method to get only active products with caching
 func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize int, includeImages bool) (*ProductListResult, error) {
+	startTime := time.Now()
+
+	// Try to get from cache first
+	cachedProducts, err := ps.cacheService.GetActiveProductsList(page, pageSize, includeImages)
+	if err != nil {
+		ps.logger.Warn("Failed to get active products from cache", gecho.Field("error", err))
+	} else if cachedProducts != nil {
+		ps.logger.Debug("Active products retrieved from cache",
+			gecho.Field("count", len(cachedProducts)),
+			gecho.Field("page", page),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+
+		// Build result from cache (pagination info needs to be fetched or cached separately)
+		// For now, return a simple result - you may want to cache pagination metadata too
+		return &ProductListResult{
+			Products: cachedProducts,
+			Pagination: database.Pagination{
+				Page:     page,
+				PageSize: pageSize,
+				Total:    len(cachedProducts),
+			},
+			Filters: ProductListOptions{
+				Page:          page,
+				PageSize:      pageSize,
+				IncludeImages: includeImages,
+			},
+			QueryTime: time.Since(startTime),
+		}, nil
+	}
+
+	// Cache miss - fetch from database
 	isActive := true
 	opts := &ProductListOptions{
 		Page:          page,
@@ -174,15 +231,65 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 		SortBy:        "created_at",
 		SortDirection: "DESC",
 	}
-	return ps.GetAllProducts(ctx, opts)
+
+	result, err := ps.GetAllProducts(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the products asynchronously
+	go func() {
+		if err := ps.cacheService.SetActiveProductsList(page, pageSize, includeImages, result.Products); err != nil {
+			ps.logger.Warn("Failed to cache active products", gecho.Field("error", err))
+		}
+	}()
+
+	return result, nil
+}
+
+// GetProductsByIds retrieves multiple products by their IDs
+func (ps *ProductService) GetProductsByIds(ctx context.Context, ids []uuid.UUID) ([]*tables.Product, error) {
+	startTime := time.Now()
+
+	if len(ids) == 0 {
+		return []*tables.Product{}, nil
+	}
+
+	// Convert IDs to interface slice
+	idInterfaces := make([]any, len(ids))
+	for i, id := range ids {
+		idInterfaces[i] = id
+	}
+
+	query := database.Query[tables.Product](ps.db).
+		WhereIn("id", idInterfaces).
+		Timeout(10 * time.Second)
+
+	products, err := query.All(ctx)
+	if err != nil {
+		ps.logger.Error("Failed to fetch products by IDs",
+			gecho.Field("ids", ids),
+			gecho.Field("error", err),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+		return nil, fmt.Errorf("failed to fetch products by IDs: %w", err)
+	}
+
+	// Convert slice to pointer slice
+	result := make([]*tables.Product, len(products))
+	for i := range products {
+		result[i] = &products[i]
+	}
+
+	return result, nil
 }
 
 // GetProductsBySKUs retrieves multiple products by their SKUs
-func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, includeImages bool) ([]structs.Product, error) {
+func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, includeImages bool) ([]tables.Product, error) {
 	startTime := time.Now()
 
 	if len(skus) == 0 {
-		return []structs.Product{}, nil
+		return []tables.Product{}, nil
 	}
 
 	// Convert SKUs to interface slice
@@ -191,12 +298,12 @@ func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, 
 		skuInterfaces[i] = sku
 	}
 
-	query := database.Query[structs.Product](ps.db).
+	query := database.Query[tables.Product](ps.db).
 		WhereIn("sku", skuInterfaces).
 		Timeout(10 * time.Second)
 
 	if includeImages {
-		query = query.With("Images")
+		query = query.Relation("Images")
 	}
 
 	products, err := query.All(ctx)
@@ -209,10 +316,6 @@ func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, 
 		return nil, fmt.Errorf("failed to fetch products by SKUs: %w", err)
 	}
 
-	ps.logger.Debug("Products fetched by SKUs",
-		gecho.Field("count", len(products)),
-		gecho.Field("duration", time.Since(startTime)),
-	)
 	return products, nil
 }
 
@@ -222,7 +325,7 @@ func (ps *ProductService) GetProductCount(ctx context.Context, opts *ProductList
 		opts = &ProductListOptions{}
 	}
 
-	query := database.Query[structs.Product](ps.db)
+	query := database.Query[tables.Product](ps.db)
 	query = ps.applyFilters(query, opts)
 
 	count, err := query.Count(ctx)
@@ -264,7 +367,6 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 		"updated_at": true,
 		"price":      true,
 		"name":       true,
-		"stock":      true,
 		"sku":        true,
 	}
 	if !validSortFields[opts.SortBy] {
@@ -276,22 +378,6 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 		return fmt.Errorf("invalid sort direction: %s (must be ASC or DESC)", opts.SortDirection)
 	}
 
-	// Validate product type if specified
-	if opts.ProductType != "" {
-		if opts.ProductType != string(structs.Flower) && opts.ProductType != string(structs.Bouquet) {
-			return fmt.Errorf("invalid product type: %s", opts.ProductType)
-		}
-	}
-
-	// Validate size if specified
-	if opts.Size != "" {
-		if opts.Size != string(structs.SizeSmall) &&
-			opts.Size != string(structs.SizeMedium) &&
-			opts.Size != string(structs.SizeLarge) {
-			return fmt.Errorf("invalid size: %s", opts.Size)
-		}
-	}
-
 	// Validate price range
 	if opts.MinPrice != nil && opts.MaxPrice != nil && *opts.MinPrice > *opts.MaxPrice {
 		return fmt.Errorf("min_price cannot be greater than max_price")
@@ -301,15 +387,10 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 }
 
 // applyFilters applies all filter conditions to the query
-func (ps *ProductService) applyFilters(query *database.QueryBuilder[structs.Product], opts *ProductListOptions) *database.QueryBuilder[structs.Product] {
+func (ps *ProductService) applyFilters(query *database.QueryBuilder[tables.Product], opts *ProductListOptions) *database.QueryBuilder[tables.Product] {
 	// Filter by active status (default to active only if not specified)
 	if opts.IsActive != nil {
 		query = query.Where("is_active", *opts.IsActive)
-	}
-
-	// Filter by product type
-	if opts.ProductType != "" {
-		query = query.Where("product_type", opts.ProductType)
 	}
 
 	// Filter by price range
@@ -318,26 +399,6 @@ func (ps *ProductService) applyFilters(query *database.QueryBuilder[structs.Prod
 	}
 	if opts.MaxPrice != nil {
 		query = query.WhereOp("price", "<=", *opts.MaxPrice)
-	}
-
-	// Filter by size
-	if opts.Size != "" {
-		query = query.Where("size", opts.Size)
-	}
-
-	// Filter by colors (OR condition - product has ANY of the specified colors)
-	if len(opts.Colors) > 0 {
-		// Convert colors to interface slice
-		colorInterfaces := make([]any, len(opts.Colors))
-		for i, color := range opts.Colors {
-			colorInterfaces[i] = color
-		}
-		query = query.WhereRaw("colors && ?", colorInterfaces) // PostgreSQL array overlap operator
-	}
-
-	// Filter by stock availability
-	if opts.InStock != nil && *opts.InStock {
-		query = query.WhereOp("stock", ">", 0)
 	}
 
 	// Search in name, description, or SKU
@@ -379,7 +440,7 @@ func (ps *ProductService) applyFilters(query *database.QueryBuilder[structs.Prod
 }
 
 // applySorting applies sorting to the query
-func (ps *ProductService) applySorting(query *database.QueryBuilder[structs.Product], opts *ProductListOptions) *database.QueryBuilder[structs.Product] {
+func (ps *ProductService) applySorting(query *database.QueryBuilder[tables.Product], opts *ProductListOptions) *database.QueryBuilder[tables.Product] {
 	var direction database.OrderDirection
 	if opts.SortDirection == "ASC" {
 		direction = database.ASC
@@ -393,4 +454,195 @@ func (ps *ProductService) applySorting(query *database.QueryBuilder[structs.Prod
 	query = query.OrderBy("id", database.ASC)
 
 	return query
+}
+
+// Create new product
+
+func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Product) (*tables.Product, error) {
+	startTime := time.Now()
+
+	// Generate UUID for product if not set (needed for image references)
+	if product.ID == uuid.Nil {
+		product.ID = uuid.New()
+	}
+
+	// Calculate subtotal
+	product.Subtotal = product.Price - product.Discount + product.Tax
+
+	// Store images separately to insert them after product creation
+	images := product.Images
+	product.Images = nil // Remove images from product to avoid relation insert issues
+
+	// Insert product into database
+	product, err := database.Query[tables.Product](ps.db).Insert(ctx, product)
+	if err != nil {
+		ps.logger.Error("Failed to create product",
+			gecho.Field("error", err),
+			gecho.Field("product_name", product.Name),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+		return nil, fmt.Errorf("failed to create product: %w", err)
+	}
+
+	// Insert images if any
+	if len(images) > 0 {
+		for i := range images {
+			// Generate UUID for image if not set
+			if images[i].ID == uuid.Nil {
+				images[i].ID = uuid.New()
+			}
+			images[i].ProductID = product.ID
+		}
+
+		_, imgErr := database.Query[tables.ProductImage](ps.db).InsertMany(ctx, images)
+		if imgErr != nil {
+			ps.logger.Error("Failed to insert product images",
+				gecho.Field("error", imgErr),
+				gecho.Field("product_id", product.ID),
+			)
+			return nil, fmt.Errorf("failed to insert product images: %w", imgErr)
+		}
+	}
+
+	// Restore images to the product object for the response
+	product.Images = images
+
+	// Invalidate product caches asynchronously
+	go func() {
+		if err := ps.cacheService.InvalidateProductCaches(product.ID); err != nil {
+			ps.logger.Warn("Failed to invalidate product caches after creation",
+				gecho.Field("error", err),
+				gecho.Field("product_id", product.ID),
+			)
+		}
+	}()
+
+	ps.logger.Info("Product created successfully",
+		gecho.Field("id", product.ID),
+		gecho.Field("image_count", len(images)),
+		gecho.Field("duration", time.Since(startTime)),
+	)
+	return product, nil
+}
+
+type UpdateProductRequest struct {
+	Name        *string               `json:"name,omitempty" validate:"omitempty,min=2,max=200"`
+	SKU         *string               `json:"sku,omitempty" validate:"omitempty,min=3,max=50"`
+	Price       *uint64               `json:"price,omitempty" validate:"omitempty,gte=0"`
+	Discount    *uint64               `json:"discount,omitempty" validate:"omitempty,gte=0"`
+	Tax         *uint64               `json:"tax,omitempty" validate:"omitempty,gte=0"`
+	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
+	IsActive    *bool                 `json:"is_active,omitempty"`
+	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
+}
+
+func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID, req *UpdateProductRequest) error {
+	return database.Transaction(ps.db, ctx, func(tx bun.Tx) error {
+		// Build update map with only provided fields
+		updateData := make(map[string]any)
+
+		if req.Name != nil {
+			updateData["name"] = *req.Name
+		}
+		if req.SKU != nil {
+			updateData["sku"] = *req.SKU
+		}
+		if req.Price != nil {
+			updateData["price"] = *req.Price
+		}
+		if req.Discount != nil {
+			updateData["discount"] = *req.Discount
+		}
+		if req.Tax != nil {
+			updateData["tax"] = *req.Tax
+		}
+		if req.Description != nil {
+			updateData["description"] = *req.Description
+		}
+		if req.IsActive != nil {
+			updateData["is_active"] = *req.IsActive
+		}
+
+		// Handle images update if provided
+		if req.Images != nil {
+			// Delete existing images
+			if _, err := database.Query[tables.ProductImage](ps.db).Where("product_id", productID.String()).Delete(ctx); err != nil {
+				return fmt.Errorf("failed to delete existing images: %w", err)
+			}
+
+			// Insert new images if any provided
+			if len(req.Images) > 0 {
+				hasPrimary := false
+				for i := range req.Images {
+					if req.Images[i].ID == uuid.Nil {
+						req.Images[i].ID = uuid.New()
+					}
+					req.Images[i].ProductID = productID
+					if req.Images[i].IsPrimary {
+						if hasPrimary {
+							req.Images[i].IsPrimary = false
+						} else {
+							hasPrimary = true
+						}
+					}
+				}
+
+				if !hasPrimary && len(req.Images) > 0 {
+					req.Images[0].IsPrimary = true
+				}
+
+				if _, err := ps.db.NewInsert().Model(&req.Images).Exec(ctx); err != nil {
+					return fmt.Errorf("failed to insert new images: %w", err)
+				}
+			}
+		}
+
+		// Calculate subtotal if price, discount, or tax changed
+		if req.Price != nil || req.Discount != nil || req.Tax != nil {
+			currentProduct, err := database.Query[tables.Product](ps.db).Where("id", productID).First(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to fetch current product for subtotal calculation: %w", err)
+			}
+
+			price := currentProduct.Price
+			discount := currentProduct.Discount
+			tax := currentProduct.Tax
+
+			if req.Price != nil {
+				price = *req.Price
+			}
+			if req.Discount != nil {
+				discount = *req.Discount
+			}
+			if req.Tax != nil {
+				tax = *req.Tax
+			}
+			updateData["subtotal"] = price - discount + tax
+		}
+
+		// Perform the update if there is data to update
+		if len(updateData) > 0 {
+			if _, err := database.Query[tables.Product](ps.db).Where("id", productID).Update(ctx, updateData); err != nil {
+				return fmt.Errorf("failed to update product: %w", err)
+			}
+		}
+
+		// Invalidate product caches asynchronously
+		go func() {
+			if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
+				ps.logger.Warn("Failed to invalidate product caches after update",
+					gecho.Field("error", err),
+					gecho.Field("product_id", productID),
+				)
+			}
+			if err := ps.cacheService.InvalidateActiveProductsListCache(); err != nil {
+				ps.logger.Warn("Failed to invalidate active products list cache after product update",
+					gecho.Field("error", err),
+					gecho.Field("product_id", productID),
+				)
+			}
+		}()
+
+		return nil
+	})
 }

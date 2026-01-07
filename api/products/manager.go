@@ -1,7 +1,6 @@
 package products
 
 import (
-	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/services"
 
 	"github.com/MonkyMars/gecho"
@@ -10,15 +9,19 @@ import (
 
 type ProductRoutesManager struct {
 	logger         *gecho.Logger
-	db             *database.DB
 	productService *services.ProductService
+	emailService   *services.EmailService
 }
 
-func NewProductRoutesManager(logger *gecho.Logger, db *database.DB) *ProductRoutesManager {
+func NewProductRoutesManager(
+	logger *gecho.Logger,
+	productService *services.ProductService,
+	emailService *services.EmailService,
+) *ProductRoutesManager {
 	return &ProductRoutesManager{
 		logger:         logger,
-		db:             db,
-		productService: services.NewProductService(logger, db),
+		productService: productService,
+		emailService:   emailService,
 	}
 }
 
