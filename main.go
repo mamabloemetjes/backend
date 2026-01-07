@@ -64,6 +64,8 @@ func run() error {
 		logger.Info("Cache service connected successfully")
 	}
 
+	serviceManager.EmailService.SendEmail("levinoppers@proton.me", "This is a test email from Mamabloemetjes server.", "levinoppers@proton.me")
+
 	// Initialize middleware
 	mw := middleware.NewMiddleware(cfg, mwLogger, db)
 

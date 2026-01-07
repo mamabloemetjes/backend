@@ -28,7 +28,7 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /app/server .
 
-# server runs on port 8082
-EXPOSE 8082
+# server runs on port 8081
+EXPOSE 8081
 
 CMD ["./server"]
