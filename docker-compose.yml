@@ -10,12 +10,14 @@ services:
       - .env
     volumes:
       - .env:/app/.env:ro
-      # Cache Go build + module deps
       - go-build-cache:/root/.cache/go-build
       - go-mod-cache:/go/pkg/mod
     ports:
       - "8081:8081"
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4 # optional backup DNS
 
 networks:
   mamabloemetjes-net:
