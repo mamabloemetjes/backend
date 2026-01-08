@@ -37,7 +37,7 @@ type UpdateProductsStockRequest struct {
 func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Request) {
 	body, err := lib.ExtractAndValidateBody[UpdateProductsRequest](r)
 	if err != nil || len(body.Products) == 0 {
-		ar.logger.Debug("Failed to extract and validate body", gecho.Field("error", err))
+		ar.logger.Warn("Failed to extract and validate body", gecho.Field("error", err))
 		gecho.BadRequest(w, gecho.WithMessage("error.products.checkProductInformation"), gecho.Send())
 		return
 	}

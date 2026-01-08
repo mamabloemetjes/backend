@@ -10,7 +10,7 @@ import (
 func (ar *AdminRoutesManager) ListAllProducts(w http.ResponseWriter, r *http.Request) {
 	opts, err := handling.ParseProductListOptions(r)
 	if err != nil {
-		ar.logger.Debug("Failed to parse product list options", gecho.Field("error", err))
+		ar.logger.Warn("Failed to parse product list options", gecho.Field("error", err))
 		gecho.BadRequest(w, gecho.WithMessage("error.invalidQueryParameters"), gecho.Send())
 		return
 	}

@@ -13,7 +13,7 @@ type Product struct {
 	SKU         string         `bun:"sku,notnull" json:"sku" validate:"omitempty,min=3,max=50"`
 	Price       uint64         `bun:"price,notnull" json:"price" validate:"required,gte=0"`          // stored in cents
 	Discount    uint64         `bun:"discount" json:"discount,omitempty" validate:"omitempty,gte=0"` // stored in cents
-	Tax         uint64         `bun:"tax,notnull" json:"tax" validate:"required,gte=0"`              // stored in cents
+	Tax         uint64         `bun:"tax,notnull" json:"tax" validate:"gte=0"`                       // stored in cents
 	Subtotal    uint64         `bun:"subtotal,notnull" json:"subtotal" validate:"omitempty,gte=0"`   // computed: Price - Discount + Tax
 	Description string         `bun:"description,notnull" json:"description" validate:"required,min=10,max=2000"`
 	IsActive    bool           `bun:"is_active,notnull" json:"is_active"`

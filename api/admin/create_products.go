@@ -11,7 +11,7 @@ import (
 func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	body, err := lib.ExtractAndValidateBody[tables.Product](r)
 	if err != nil {
-		ar.logger.Debug("Failed to extract and validate body", err)
+		ar.logger.Warn("Failed to extract and validate body", err)
 		gecho.BadRequest(w, gecho.WithMessage("error.products.checkProductInformation"), gecho.Send())
 		return
 	}
