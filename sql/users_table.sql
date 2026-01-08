@@ -118,7 +118,7 @@ COMMENT ON COLUMN public.users.email IS
     'Unique email address for authentication and communication';
 
 COMMENT ON COLUMN public.users.password_hash IS
-    'Bcrypt hashed password - never store plain text passwords';
+    'Argon hashed password - never store plain text passwords';
 
 COMMENT ON COLUMN public.users.role IS
     'User role for authorization (user, admin, moderator)';
