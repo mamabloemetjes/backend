@@ -810,7 +810,7 @@ func (os *OrderService) CreateAddress(ctx context.Context, address *tables.Addre
 	return nil
 }
 
-// GetUserAddresses retrieves all addresses for a user
+// GetUserAddresses retrieves all addresses for a user with decrypted fields
 func (os *OrderService) GetUserAddresses(ctx context.Context, userId uuid.UUID) ([]*tables.Address, error) {
 	addresses, err := database.Query[tables.Address](os.db).
 		Where("user_id", userId).
@@ -820,10 +820,33 @@ func (os *OrderService) GetUserAddresses(ctx context.Context, userId uuid.UUID) 
 		return nil, lib.MapPgError(err)
 	}
 
-	// Convert to pointer slice
+	// Convert to pointer slice and decrypt fields
 	result := make([]*tables.Address, len(addresses))
 	for i := range addresses {
-		result[i] = &addresses[i]
+		addr := &addresses[i]
+
+		// Decrypt address fields
+		addr.Street, err = lib.Decrypt(addr.Street, os.cfg.Encryption.Key)
+		if err != nil {
+			os.logger.Warn("Failed to decrypt street", gecho.Field("error", err))
+		}
+
+		addr.HouseNo, err = lib.Decrypt(addr.HouseNo, os.cfg.Encryption.Key)
+		if err != nil {
+			os.logger.Warn("Failed to decrypt house number", gecho.Field("error", err))
+		}
+
+		addr.PostalCode, err = lib.Decrypt(addr.PostalCode, os.cfg.Encryption.Key)
+		if err != nil {
+			os.logger.Warn("Failed to decrypt postal code", gecho.Field("error", err))
+		}
+
+		addr.City, err = lib.Decrypt(addr.City, os.cfg.Encryption.Key)
+		if err != nil {
+			os.logger.Warn("Failed to decrypt city", gecho.Field("error", err))
+		}
+
+		result[i] = addr
 	}
 
 	return result, nil

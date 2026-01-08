@@ -14,6 +14,7 @@ type AuthRoutesManager struct {
 	authService  *services.AuthService
 	cacheService *services.CacheService
 	emailService *services.EmailService
+	orderService *services.OrderService
 	cfg          *structs.Config
 	mw           *middleware.Middleware
 }
@@ -23,6 +24,7 @@ func NewAuthRoutesManager(
 	authService *services.AuthService,
 	emailService *services.EmailService,
 	cacheService *services.CacheService,
+	orderService *services.OrderService,
 	cfg *structs.Config,
 	mw *middleware.Middleware,
 ) *AuthRoutesManager {
@@ -31,6 +33,7 @@ func NewAuthRoutesManager(
 		authService:  authService,
 		emailService: emailService,
 		cacheService: cacheService,
+		orderService: orderService,
 		cfg:          cfg,
 		mw:           mw,
 	}
@@ -50,5 +53,11 @@ func (rrm *AuthRoutesManager) RegisterRoutes(r chi.Router) {
 		})
 		r.Get("/me", rrm.HandleMe)
 		r.Get("/verify-email", rrm.HandleVerifyEmail)
+
+		// Protected routes for user data
+		r.Group(func(r chi.Router) {
+			r.Use(rrm.mw.UserAuthMiddleware)
+			r.Get("/addresses", rrm.HandleGetAddresses)
+		})
 	})
 }
