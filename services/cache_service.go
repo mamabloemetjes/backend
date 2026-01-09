@@ -396,8 +396,11 @@ func (cs *CacheService) GetRateLimitStatus(ip, endpoint string) (map[string]any,
 // ============================================================================
 
 // GetActiveProductsList retrieves cached active products list
-func (cs *CacheService) GetActiveProductsList(page, pageSize int, includeImages bool) ([]tables.Product, error) {
-	key := fmt.Sprintf("products:active:page:%d:size:%d:images:%v", page, pageSize, includeImages)
+func (cs *CacheService) GetActiveProductsList(page, pageSize int, includeImages bool, productType string) ([]tables.Product, error) {
+	if productType == "" {
+		productType = "all"
+	}
+	key := fmt.Sprintf("products:active:page:%d:size:%d:type:%s:images:%v", page, pageSize, productType, includeImages)
 
 	products, err := getJSON[[]tables.Product](cs, key)
 	if err != nil {
@@ -413,7 +416,10 @@ func (cs *CacheService) GetActiveProductsList(page, pageSize int, includeImages 
 }
 
 // SetActiveProductsList caches active products list
-func (cs *CacheService) SetActiveProductsList(page, pageSize int, includeImages bool, products []tables.Product) error {
+func (cs *CacheService) SetActiveProductsList(page, pageSize int, includeImages bool, products []tables.Product, productType string) error {
+	if productType == "" {
+		productType = "all"
+	}
 	key := fmt.Sprintf("products:active:page:%d:size:%d:images:%v", page, pageSize, includeImages)
 	ttl := cs.getProductListTTL()
 
@@ -452,12 +458,12 @@ func (cs *CacheService) SetProductBySKU(product *tables.Product) error {
 }
 
 // GetProductByID retrieves a cached product by ID
-func (cs *CacheService) GetProductByID(id string, includeImages bool) (*tables.Product, error) {
-	key := fmt.Sprintf("product:id:%s:images:%v", id, includeImages)
+func (cs *CacheService) GetProductByID(id uuid.UUID, includeImages bool) (*tables.Product, error) {
+	key := fmt.Sprintf("product:id:%s:images:%v", id.String(), includeImages)
 
 	product, err := getJSON[tables.Product](cs, key)
 	if err != nil {
-		cs.logger.Warn("Failed to get product from cache", "error", err, "id", id)
+		cs.logger.Warn("Failed to get product from cache", "error", err, "id", id.String())
 		return nil, err
 	}
 

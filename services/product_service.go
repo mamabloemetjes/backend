@@ -41,6 +41,7 @@ type ProductListOptions struct {
 	ExcludeSKUs   []string   `json:"exclude_skus,omitempty"`   // Exclude specific SKUs
 	CreatedAfter  *time.Time `json:"created_after,omitempty"`  // Products created after this date
 	CreatedBefore *time.Time `json:"created_before,omitempty"` // Products created before this date
+	ProductType   string     `json:"product_type,omitempty"`   // Product type filter - funeral or wedding
 
 	// Sorting
 	SortBy        string `json:"sort_by"`        // Field to sort by (created_at, price, name)
@@ -130,7 +131,7 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 }
 
 // GetProductByID retrieves a single product by ID with optional image preloading
-func (ps *ProductService) GetProductByID(ctx context.Context, id string, includeImages bool) (*tables.Product, error) {
+func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, includeImages bool) (*tables.Product, error) {
 	startTime := time.Now()
 
 	// Try to get from cache first
@@ -189,11 +190,11 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id string, include
 }
 
 // GetActiveProducts is a convenience method to get only active products with caching
-func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize int, includeImages bool) (*ProductListResult, error) {
+func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize int, includeImages bool, productType string) (*ProductListResult, error) {
 	startTime := time.Now()
 
 	// Try to get from cache first
-	cachedProducts, err := ps.cacheService.GetActiveProductsList(page, pageSize, includeImages)
+	cachedProducts, err := ps.cacheService.GetActiveProductsList(page, pageSize, includeImages, productType)
 	if err != nil {
 		ps.logger.Warn("Failed to get active products from cache", gecho.Field("error", err))
 	} else if cachedProducts != nil {
@@ -203,8 +204,7 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 			gecho.Field("duration", time.Since(startTime)),
 		)
 
-		// Build result from cache (pagination info needs to be fetched or cached separately)
-		// For now, return a simple result - you may want to cache pagination metadata too
+		// Build result from cache
 		return &ProductListResult{
 			Products: cachedProducts,
 			Pagination: database.Pagination{
@@ -217,7 +217,7 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 				PageSize:      pageSize,
 				IncludeImages: includeImages,
 			},
-			QueryTime: time.Since(startTime),
+			QueryTime: time.Duration(time.Since(startTime).Milliseconds()),
 		}, nil
 	}
 
@@ -230,6 +230,7 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 		IncludeImages: includeImages,
 		SortBy:        "created_at",
 		SortDirection: "DESC",
+		ProductType:   productType,
 	}
 
 	result, err := ps.GetAllProducts(ctx, opts)
@@ -239,7 +240,7 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 
 	// Cache the products asynchronously
 	go func() {
-		if err := ps.cacheService.SetActiveProductsList(page, pageSize, includeImages, result.Products); err != nil {
+		if err := ps.cacheService.SetActiveProductsList(page, pageSize, includeImages, result.Products, ""); err != nil {
 			ps.logger.Warn("Failed to cache active products", gecho.Field("error", err))
 		}
 	}()
@@ -410,6 +411,11 @@ func (ps *ProductService) applyFilters(query *database.QueryBuilder[tables.Produ
 		)
 	}
 
+	// Filter by product type
+	if opts.ProductType != "" {
+		query = query.Where("product_type", opts.ProductType)
+	}
+
 	// Filter by specific SKUs
 	if len(opts.SKUs) > 0 {
 		skuInterfaces := make([]any, len(opts.SKUs))
@@ -532,6 +538,7 @@ type UpdateProductRequest struct {
 	Discount    *uint64               `json:"discount,omitempty" validate:"omitempty,gte=0"`
 	Tax         *uint64               `json:"tax,omitempty" validate:"omitempty,gte=0"`
 	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
+	ProductType *string               `json:"product_type,omitempty" validate:"omitempty,min=2,max=100"`
 	IsActive    *bool                 `json:"is_active,omitempty"`
 	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
 }
@@ -561,6 +568,10 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 		}
 		if req.IsActive != nil {
 			updateData["is_active"] = *req.IsActive
+		}
+
+		if req.ProductType != nil {
+			updateData["product_type"] = *req.ProductType
 		}
 
 		// Handle images update if provided

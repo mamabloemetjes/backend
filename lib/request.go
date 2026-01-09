@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -108,4 +109,36 @@ func mapValidationErrors(errs validator.ValidationErrors) *ValidationError {
 	}
 
 	return out
+}
+
+// SanitizeString cleans a string robustly
+func SanitizeString(s string, removePunctuation bool, keepSpaces bool) string {
+	// Trim leading/trailing whitespace
+	s = strings.TrimSpace(s)
+
+	// Convert to lowercase
+	s = strings.ToLower(s)
+
+	// Normalize spaces
+	if keepSpaces {
+		// Replace multiple spaces/tabs/newlines with single space
+		spaceRegex := regexp.MustCompile(`\s+`)
+		s = spaceRegex.ReplaceAllString(s, " ")
+	} else {
+		// Remove all whitespace
+		s = strings.Join(strings.Fields(s), "")
+	}
+
+	if removePunctuation {
+		// Remove all punctuation
+		var builder strings.Builder
+		for _, r := range s {
+			if !unicode.IsPunct(r) {
+				builder.WriteRune(r)
+			}
+		}
+		s = builder.String()
+	}
+
+	return s
 }

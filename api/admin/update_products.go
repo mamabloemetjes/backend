@@ -19,8 +19,6 @@ type UpdateProductRequest struct {
 	Subtotal    *uint64               `json:"subtotal,omitempty" validate:"omitempty,gte=0"`
 	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
 	IsActive    *bool                 `json:"is_active,omitempty"`
-	Size        *string               `json:"size,omitempty" validate:"omitempty,min=1,max=50"`
-	Colors      []string              `json:"colors,omitempty" validate:"omitempty,dive,min=2,max=50"`
 	ProductType *string               `json:"product_type,omitempty" validate:"omitempty,min=2,max=100"`
 	Stock       *uint16               `json:"stock,omitempty" validate:"omitempty,gte=0"`
 	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
@@ -61,6 +59,7 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 			Description: updateReq.Description,
 			IsActive:    updateReq.IsActive,
 			Images:      updateReq.Images,
+			ProductType: updateReq.ProductType,
 		}
 
 		if err := ar.productService.UpdateProduct(r.Context(), productUUID, serviceReq); err != nil {
