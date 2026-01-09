@@ -2,11 +2,13 @@ package products
 
 import (
 	"mamabloemetjes_server/handling"
+	"mamabloemetjes_server/lib"
 	"net/http"
 	"strconv"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // FetchAllProducts handles GET /products with comprehensive filtering, pagination, and sorting
@@ -64,9 +66,21 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 
 	// Get ID from URL parameter using chi
-	id := chi.URLParam(r, "id")
+	idStr := chi.URLParam(r, "id")
 
-	if id == "" {
+	// Validate and parse ID
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		p.logger.Warn("Invalid product ID format", "id", idStr, "error", err)
+		gecho.BadRequest(w,
+			gecho.WithMessage("error.products.invalidProductId"),
+			gecho.Send(),
+		)
+		return
+	}
+
+	// Check if ID is empty (zero UUID)
+	if id == uuid.Nil {
 		p.logger.Warn("Product ID not provided")
 		gecho.BadRequest(w,
 			gecho.WithMessage("error.products.productIdRequired"),
@@ -115,23 +129,25 @@ func (p *ProductRoutesManager) FetchActiveProducts(w http.ResponseWriter, r *htt
 	page := 1
 	pageSize := 20
 
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+	if pageStr := lib.SanitizeString(r.URL.Query().Get("page"), true, false); pageStr != "" {
 		if val, err := strconv.Atoi(pageStr); err == nil && val > 0 {
 			page = val
 		}
 	}
 
-	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
+	if pageSizeStr := lib.SanitizeString(r.URL.Query().Get("page_size"), true, false); pageSizeStr != "" {
 		if val, err := strconv.Atoi(pageSizeStr); err == nil && val > 0 {
 			pageSize = val
 		}
 	}
 
+	productType := lib.SanitizeString(r.URL.Query().Get("product_type"), true, false)
+
 	// Check if images should be included
-	includeImages := r.URL.Query().Get("include_images") == "true"
+	includeImages := lib.SanitizeString(r.URL.Query().Get("include_images"), true, false) == "true"
 
 	// Fetch active products using the service
-	result, err := p.productService.GetActiveProducts(ctx, page, pageSize, includeImages)
+	result, err := p.productService.GetActiveProducts(ctx, page, pageSize, includeImages, productType)
 	if err != nil {
 		p.logger.Error("Failed to fetch active products", "error", err)
 		gecho.InternalServerError(w,

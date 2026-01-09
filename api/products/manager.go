@@ -27,7 +27,6 @@ func NewProductRoutesManager(
 
 func (prm *ProductRoutesManager) RegisterRoutes(r chi.Router) {
 	// Register product-related routes here
-	r.Get("/products", prm.FetchAllProducts)
 	r.Get("/products/{id}", prm.FetchProductByID)
 	r.Get("/products/active", prm.FetchActiveProducts)
 	r.Get("/products/count", prm.GetProductCount)

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.products (
     name TEXT NOT NULL,
     sku TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL,
+    type TEXT NOT NULL,
 
     -- Pricing (stored in cents for precision)
     price BIGINT NOT NULL CHECK (price >= 0),
