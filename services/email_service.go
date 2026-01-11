@@ -90,6 +90,7 @@ func (es *EmailService) SendVerificationEmail(user *tables.User) (*tables.EmailV
 
 	// Send email with link
 	verificationLink := fmt.Sprintf("%s/auth/verify-email?token=%s&user_id=%s", es.cfg.Server.ServerURL, token, user.Id.String())
+	resendLink := fmt.Sprintf("%s/email/resend?id=%s", es.cfg.Server.FrontendURL, user.Id.String())
 
 	emailBody := fmt.Sprintf(`
 		<!DOCTYPE html>
@@ -122,6 +123,11 @@ func (es *EmailService) SendVerificationEmail(user *tables.User) (*tables.EmailV
 
 					<p>Link werkt niet? Kopieer en plak de volgende URL in je browser:</p>
 					<p style="word-break: break-all;">%s</p>
+
+					<p style="margin-top: 20px; padding: 15px; background-color: #f0f0f0; border-left: 4px solid #4CAF50;">
+						<strong>Link verlopen?</strong><br>
+						Als deze verificatielink is verlopen, kun je een nieuwe aanvragen: <a href="%s" style="color: #4CAF50; text-decoration: underline;">Klik hier om een nieuwe verificatie e-mail te ontvangen</a>
+					</p>
 				</div>
 
 				<div class="divider"></div>
@@ -140,6 +146,11 @@ func (es *EmailService) SendVerificationEmail(user *tables.User) (*tables.EmailV
 
 					<p>Link not working? Copy and paste the following URL into your browser:</p>
 					<p style="word-break: break-all;">%s</p>
+
+					<p style="margin-top: 20px; padding: 15px; background-color: #f0f0f0; border-left: 4px solid #4CAF50;">
+						<strong>Link expired?</strong><br>
+						If this verification link has expired, you can request a new one: <a href="%s" style="color: #4CAF50; text-decoration: underline;">Click here to receive a new verification email</a>
+					</p>
 				</div>
 
 				<div class="footer">
@@ -148,7 +159,7 @@ func (es *EmailService) SendVerificationEmail(user *tables.User) (*tables.EmailV
 			</div>
 		</body>
 		</html>
-	`, verificationLink, time.Until(expiration).Minutes(), verificationLink, verificationLink, time.Until(expiration).Minutes(), verificationLink)
+	`, verificationLink, time.Until(expiration).Minutes(), verificationLink, resendLink, verificationLink, time.Until(expiration).Minutes(), verificationLink, resendLink)
 
 	err = es.SendEmail(user.Email, "Verify your email", emailBody)
 	if err != nil {

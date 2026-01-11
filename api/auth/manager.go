@@ -50,9 +50,11 @@ func (rrm *AuthRoutesManager) RegisterRoutes(r chi.Router) {
 			r.Post("/register", rrm.HandleRegister)
 			r.Post("/login", rrm.HandleLogin)
 			r.Post("/logout", rrm.HandleLogout)
+			r.Post("/resend-verification", rrm.HandleResendVerification)
 		})
 		r.Get("/me", rrm.HandleMe)
 		r.Get("/verify-email", rrm.HandleVerifyEmail)
+		r.Get("/check-verification", rrm.HandleCheckVerification)
 
 		// Protected routes for user data
 		r.Group(func(r chi.Router) {

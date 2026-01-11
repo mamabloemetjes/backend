@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- User Credentials
-    username TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
 
@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS public.users (
 -- ============================================================================
 
 -- Primary lookup indexes
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username
+-- Username is non-unique (full names can be identical)
+CREATE INDEX IF NOT EXISTS idx_users_username
     ON public.users USING btree (username)
     TABLESPACE pg_default;
 
@@ -112,7 +113,7 @@ COMMENT ON TABLE public.users IS
     'Main users table storing authentication and authorization information';
 
 COMMENT ON COLUMN public.users.username IS
-    'Unique username for user identification (3-50 characters)';
+    'User full name for display purposes (2-100 characters, non-unique)';
 
 COMMENT ON COLUMN public.users.email IS
     'Unique email address for authentication and communication';

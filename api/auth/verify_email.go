@@ -44,6 +44,6 @@ func (ar *AuthRoutesManager) HandleVerifyEmail(w http.ResponseWriter, r *http.Re
 }
 
 func getRedirectURL(cfgURL, status string) string {
-	url := fmt.Sprintf("%s/email-verified?status=%s", cfgURL, status)
+	url := fmt.Sprintf("%s/email/verified?status=%s", cfgURL, status)
 	return url
 }
