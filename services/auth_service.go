@@ -391,3 +391,8 @@ func (as *AuthService) VerifyEmail(userId uuid.UUID, token string) error {
 	as.logger.Info("Email verified successfully", gecho.Field("user_id", userId))
 	return nil
 }
+
+// GetDB returns the database instance (helper method for accessing db)
+func (as *AuthService) GetDB() *database.DB {
+	return as.db
+}

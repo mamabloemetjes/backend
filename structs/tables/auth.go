@@ -15,7 +15,7 @@ type AuthResponse struct {
 type User struct {
 	tableName     struct{}  `bun:"table:users,alias:u"`
 	Id            uuid.UUID `json:"id" bun:"id,pk,type:uuid,default:gen_random_uuid()" validate:"omitempty,uuid4"`
-	Username      string    `json:"username" bun:"username,unique,notnull" validate:"required,min=3,max=50"`
+	Username      string    `json:"username" bun:"username,notnull" validate:"required,min=2,max=100"`
 	Email         string    `json:"email" bun:"email,unique,notnull" validate:"required,email"`
 	PasswordHash  string    `json:"-" bun:"password_hash,notnull" validate:"omitempty,min=60"`
 	Role          string    `json:"role" bun:"role,notnull,default:'user'" validate:"required,oneof=user admin"`
