@@ -64,7 +64,13 @@ func run() error {
 		logger.Info("Cache service connected successfully")
 	}
 
-	serviceManager.EmailService.SendEmail("levinoppers@proton.me", "This is a test email from Mamabloemetjes server.", "levinoppers@proton.me")
+	// Test email
+	err = serviceManager.EmailService.SendEmail([]string{"levinoppers@proton.me"}, "This is a test email from Mamabloemetjes server.", "levinoppers@proton.me")
+	if err != nil {
+		logger.Error("Failed to send test email", gecho.Field("error", err))
+	} else {
+		logger.Info("Successfully sent test email")
+	}
 
 	// Initialize middleware
 	mw := middleware.NewMiddleware(cfg, mwLogger, db)
@@ -74,7 +80,7 @@ func run() error {
 	productRoutes := products.NewProductRoutesManager(logger, serviceManager.ProductService, serviceManager.EmailService)
 	authRoutes := auth.NewAuthRoutesManager(logger, serviceManager.AuthService, serviceManager.EmailService, serviceManager.CacheService, serviceManager.OrderService, cfg, mw)
 	adminRoutes := admin.NewAdminRoutesManager(logger, serviceManager.ProductService, serviceManager.OrderService, mw)
-	ordersRoutes := orders.NewOrderRoutesManager(serviceManager.ProductService, serviceManager.OrderService, mw, logger)
+	ordersRoutes := orders.NewOrderRoutesManager(serviceManager.ProductService, serviceManager.OrderService, serviceManager.EmailService, mw, logger)
 	debugRoutes := debug.NewDebugRoutesManager(serviceManager.CacheService)
 
 	// Initialize main router manager

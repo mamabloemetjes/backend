@@ -55,12 +55,27 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Send confirmation email to customer and shop owner
+	go func() {
+		err := orm.emailService.SendOrderConfirmationEmail(order.Order.Email, order.Order.Name, order.Order.OrderNumber, order.OrderLines, order.Address)
+		if err != nil {
+			orm.logger.Error("Failed to send order confirmation email",
+				gecho.Field("error", err),
+				gecho.Field("email", order.Order.Email),
+				gecho.Field("order_number", order.Order.OrderNumber),
+			)
+		} else {
+			orm.logger.Info("Order confirmation email sent",
+				gecho.Field("order_number", order.Order.OrderNumber))
+		}
+	}()
+
 	gecho.Success(w,
 		gecho.WithMessage("success.order.created"),
 		gecho.WithData(map[string]any{
-			"order_number": order.OrderNumber,
-			"order_id":     order.Id,
-			"status":       order.Status,
+			"order_number": order.Order.OrderNumber,
+			"order_id":     order.Order.Id,
+			"status":       order.Order.Status,
 		}),
 		gecho.Send(),
 	)

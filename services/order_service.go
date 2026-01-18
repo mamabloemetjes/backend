@@ -39,8 +39,14 @@ func NewOrderService(
 	}
 }
 
+type CreatedOrder struct {
+	Order      *tables.Order
+	OrderLines []*tables.OrderLine
+	Address    *tables.Address
+}
+
 // CreateOrderFromRequest creates a complete order with address, order lines, and sends confirmation email
-func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs.OrderRequest, userId *uuid.UUID) (order *tables.Order, err error) {
+func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs.OrderRequest, userId *uuid.UUID) (orderRes *CreatedOrder, err error) {
 	os.logger.Info("CreateOrderFromRequest started", gecho.Field("products_count", len(req.Products)))
 
 	// Start a Bun transaction
@@ -208,7 +214,7 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 	orderId := uuid.New()
 	orderNumber := lib.GenerateOrderNumber()
 
-	order = &tables.Order{
+	order := &tables.Order{
 		Id:            orderId,
 		OrderNumber:   orderNumber,
 		Name:          encryptedName,
@@ -312,7 +318,32 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 	os.logger.Info("Order created successfully",
 		gecho.Field("order_id", orderId),
 		gecho.Field("order_number", orderNumber))
-	return order, nil
+
+	// Return data all unencrypted!
+	return &CreatedOrder{
+		Order: &tables.Order{
+			Id:            orderId,
+			OrderNumber:   orderNumber,
+			Name:          req.Name,
+			Email:         req.Email,
+			Phone:         req.Phone,
+			Note:          req.CustomerNote,
+			AddressId:     addressId,
+			PaymentLink:   "",
+			PaymentStatus: tables.PaymentStatusUnpaid,
+			Status:        tables.OrderStatusPending,
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		},
+		OrderLines: orderLines,
+		Address: &tables.Address{
+			Street:     req.Street,
+			HouseNo:    req.HouseNo,
+			PostalCode: req.PostalCode,
+			City:       req.City,
+			Country:    req.Country,
+		},
+	}, nil
 }
 
 // GetOrderById retrieves an order by ID with decrypted PII

@@ -11,14 +11,16 @@ import (
 type OrderRoutesManager struct {
 	productService *services.ProductService
 	orderService   *services.OrderService
+	emailService   *services.EmailService
 	middleware     *middleware.Middleware
 	logger         *gecho.Logger
 }
 
-func NewOrderRoutesManager(productService *services.ProductService, orderService *services.OrderService, middleware *middleware.Middleware, logger *gecho.Logger) *OrderRoutesManager {
+func NewOrderRoutesManager(productService *services.ProductService, orderService *services.OrderService, emailService *services.EmailService, middleware *middleware.Middleware, logger *gecho.Logger) *OrderRoutesManager {
 	return &OrderRoutesManager{
 		productService: productService,
 		orderService:   orderService,
+		emailService:   emailService,
 		middleware:     middleware,
 		logger:         logger,
 	}
