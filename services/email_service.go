@@ -45,11 +45,10 @@ func getEmailClient(apiKey string) *resend.Client {
 	return client
 }
 
-func (es *EmailService) SendEmail(to string, subject string, body string) error {
-
+func (es *EmailService) SendEmail(to []string, subject string, body string) error {
 	params := &resend.SendEmailRequest{
 		From:    es.cfg.Email.From,
-		To:      []string{to},
+		To:      to,
 		Html:    body,
 		Subject: subject,
 	}
@@ -161,7 +160,7 @@ func (es *EmailService) SendVerificationEmail(user *tables.User) (*tables.EmailV
 		</html>
 	`, verificationLink, time.Until(expiration).Minutes(), verificationLink, resendLink, verificationLink, time.Until(expiration).Minutes(), verificationLink, resendLink)
 
-	err = es.SendEmail(user.Email, "Verify your email", emailBody)
+	err = es.SendEmail([]string{user.Email}, "Verify your email", emailBody)
 	if err != nil {
 		es.logger.Error("Failed to send verification email", gecho.Field("error", err), gecho.Field("to", user.Email))
 		return nil, err
@@ -243,9 +242,9 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 				<div class="divider"></div>
 
 				<!-- English Version -->
-				<div class="header">
+				<div class="header">SendEmail
 					<h1>Thank you for your order!</h1>
-				</div>
+				</div>user
 				<div class="content">
 					<p>Dear %s,</p>
 					<p>The order has beenr recieved. Below you will find the details of your order.</p>
@@ -277,7 +276,7 @@ func (es *EmailService) SendOrderConfirmationEmail(email, name, orderNumber stri
 
 	subject := fmt.Sprintf("Bevestiging van je bestelling %s / Order confirmation %s", orderNumber, orderNumber)
 
-	return es.SendEmail(email, subject, emailBody)
+	return es.SendEmail([]string{email, es.cfg.Email.SupportEmail}, subject, emailBody)
 }
 
 // SendPaymentLinkEmail sends a bilingual email with the Tikkie payment link
@@ -352,5 +351,5 @@ func (es *EmailService) SendPaymentLinkEmail(email, name, orderNumber, paymentLi
 
 	subject := fmt.Sprintf("Betaallink voor bestelling %s / Payment link for order %s", orderNumber, orderNumber)
 
-	return es.SendEmail(email, subject, emailBody)
+	return es.SendEmail([]string{email}, subject, emailBody)
 }
