@@ -225,6 +225,7 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 		PaymentLink:   "",
 		PaymentStatus: tables.PaymentStatusUnpaid,
 		Status:        tables.OrderStatusPending,
+		ShippingCents: uint64(req.ShippingCents),
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}

@@ -25,6 +25,9 @@ type Order struct {
 	PaymentLink   string        `bun:"payment_link" json:"payment_link,omitempty" validate:"omitempty,url"` // Can be null initially because payment link will be attached later
 	PaymentStatus PaymentStatus `bun:"payment_status,notnull,default:'unpaid'" json:"payment_status" validate:"required,oneof=unpaid paid"`
 
+	// Shipping
+	ShippingCents uint64 `bun:"shipping_cents" json:"shipping_cents"`
+
 	// Order Data
 	Status    OrderStatus `bun:"status,notnull,default:'pending'" json:"status" validate:"required,oneof=pending paid processing shipped delivered cancelled refunded"`
 	CreatedAt time.Time   `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`

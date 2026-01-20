@@ -15,5 +15,6 @@ type OrderRequest struct {
 	Country    string `json:"country" validate:"omitempty,len=2"` // ISO country code
 
 	// Order data
-	Products map[string]int `json:"products" validate:"required,min=1,dive,keys,uuid4,endkeys,required,min=1"` // productID -> quantity
+	Products      map[string]int `json:"products" validate:"required,min=1,dive,keys,uuid4,endkeys,required,min=1"` // productID -> quantity
+	ShippingCents int            `json:"shipping_cents"`
 }
