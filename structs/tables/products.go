@@ -16,7 +16,7 @@ type Product struct {
 	Tax         uint64         `bun:"tax,notnull" json:"tax" validate:"gte=0"`                       // stored in cents
 	Subtotal    uint64         `bun:"subtotal,notnull" json:"subtotal" validate:"omitempty,gte=0"`   // computed: Price - Discount + Tax
 	Description string         `bun:"description,notnull" json:"description" validate:"required,min=10,max=2000"`
-	ProductType string         `bun:"product_type" json:"product_type" validate:"omitempty,oneof='wedding' 'funeral'"`
+	ProductType string         `bun:"product_type" json:"product_type" validate:"omitempty,oneof='wedding' 'funeral' 'birth'"`
 	IsActive    bool           `bun:"is_active,notnull" json:"is_active"`
 	CreatedAt   time.Time      `bun:"created_at,notnull,default:now()" json:"created_at"`
 	UpdatedAt   time.Time      `bun:"updated_at,notnull,default:now()" json:"updated_at"`
