@@ -8,7 +8,6 @@ import (
 	"mamabloemetjes_server/structs"
 	"mamabloemetjes_server/structs/tables"
 	"runtime/debug"
-	"slices"
 	"time"
 
 	"github.com/MonkyMars/gecho"
@@ -622,11 +621,6 @@ func (os *OrderService) UpdateOrderStatus(ctx context.Context, orderId uuid.UUID
 		return err
 	}
 
-	// Validate status transitions
-	if !os.isValidStatusTransition(order.Status, newStatus) {
-		return fmt.Errorf("invalid status transition from %s to %s", order.Status, newStatus)
-	}
-
 	// Update status
 	tx, err := os.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -775,46 +769,6 @@ func (os *OrderService) SoftDeleteOrder(ctx context.Context, orderId uuid.UUID) 
 	os.logger.Info("Order soft deleted", gecho.Field("order_id", orderId))
 
 	return nil
-}
-
-// isValidStatusTransition validates if a status transition is allowed
-func (os *OrderService) isValidStatusTransition(current, next tables.OrderStatus) bool {
-	// Define allowed transitions
-	transitions := map[tables.OrderStatus][]tables.OrderStatus{
-		tables.OrderStatusPending: {
-			tables.OrderStatusPaid,
-			tables.OrderStatusCancelled,
-		},
-		tables.OrderStatusPaid: {
-			tables.OrderStatusProcessing,
-			tables.OrderStatusCancelled,
-			tables.OrderStatusRefunded,
-		},
-		tables.OrderStatusProcessing: {
-			tables.OrderStatusShipped,
-			tables.OrderStatusCancelled,
-			tables.OrderStatusRefunded,
-		},
-		tables.OrderStatusShipped: {
-			tables.OrderStatusDelivered,
-		},
-		tables.OrderStatusDelivered: {
-			tables.OrderStatusRefunded,
-		},
-		tables.OrderStatusCancelled: {},
-		tables.OrderStatusRefunded:  {},
-	}
-
-	allowedNextStates, exists := transitions[current]
-	if !exists {
-		return false
-	}
-
-	if slices.Contains(allowedNextStates, next) {
-		return true
-	}
-
-	return false
 }
 
 // CreateAddress creates a new address
