@@ -15,7 +15,7 @@ type AttachPaymentLinkRequest struct {
 }
 
 type UpdateOrderStatusRequest struct {
-	Status string `json:"status" validate:"required,oneof=pending paid processing shipped delivered cancelled refunded"`
+	Status tables.OrderStatus `json:"status" validate:"required,oneof=pending paid processing shipped delivered cancelled refunded"`
 }
 
 // AttachPaymentLink attaches a Tikkie payment link to an order and sends email to customer
@@ -112,30 +112,23 @@ func (ar *AdminRoutesManager) UpdateOrderStatus(w http.ResponseWriter, r *http.R
 	}
 
 	// Parse status from form
-	if err := r.ParseForm(); err != nil {
-		gecho.BadRequest(w,
-			gecho.WithMessage("error.order.invalidRequestBody"),
-			gecho.Send(),
-		)
-		return
-	}
+	body, err := lib.ExtractAndValidateBody[UpdateOrderStatusRequest](r)
 
-	statusStr := r.FormValue("status")
-	if statusStr == "" {
+	if body.Status == "" {
 		gecho.BadRequest(w,
-			gecho.WithMessage("error.order.statusRequired"),
+			gecho.WithMessage("Body incomplete"),
 			gecho.Send(),
 		)
 		return
 	}
 
 	// Update order status
-	err = ar.orderService.UpdateOrderStatus(r.Context(), orderId, tables.OrderStatus(statusStr))
+	err = ar.orderService.UpdateOrderStatus(r.Context(), orderId, body.Status)
 	if err != nil {
 		ar.logger.Error("Failed to update order status",
 			gecho.Field("error", err),
 			gecho.Field("order_id", orderId),
-			gecho.Field("status", statusStr))
+		)
 
 		// Check if it's a validation error
 		if err.Error() == "invalid status transition" {
