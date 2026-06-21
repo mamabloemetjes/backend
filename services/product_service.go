@@ -41,7 +41,7 @@ type ProductListOptions struct {
 	ExcludeSKUs   []string   `json:"exclude_skus,omitempty"`   // Exclude specific SKUs
 	CreatedAfter  *time.Time `json:"created_after,omitempty"`  // Products created after this date
 	CreatedBefore *time.Time `json:"created_before,omitempty"` // Products created before this date
-	ProductType   string     `json:"product_type,omitempty"`   // Product type filter - funeral or wedding
+	ProductType   string     `json:"product_type,omitempty"`   // Product type filter - funeral, wedding, birth or flowers
 
 	// Sorting
 	SortBy        string `json:"sort_by"`        // Field to sort by (created_at, price, name)
