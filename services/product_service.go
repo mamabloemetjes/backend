@@ -657,3 +657,53 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 		return nil
 	})
 }
+
+func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID) error {
+	startTime := time.Now()
+
+	// Delete product and its images in a transaction
+	err := database.Transaction(ps.db, ctx, func(tx bun.Tx) error {
+		// Delete images first
+		if _, err := database.Query[tables.ProductImage](ps.db).Where("product_id", productID.String()).Delete(ctx); err != nil {
+			return fmt.Errorf("failed to delete product images: %w", err)
+		}
+
+		// Delete the product
+		if _, err := database.Query[tables.Product](ps.db).Where("id", productID.String()).Delete(ctx); err != nil {
+			return fmt.Errorf("failed to delete product: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		ps.logger.Error("Failed to delete product",
+			gecho.Field("error", err),
+			gecho.Field("product_id", productID),
+			gecho.Field("duration", time.Since(startTime)),
+		)
+		return fmt.Errorf("failed to delete product: %w", err)
+	}
+
+	// Invalidate product caches asynchronously
+	go func() {
+		if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
+			ps.logger.Warn("Failed to invalidate product caches after deletion",
+				gecho.Field("error", err),
+				gecho.Field("product_id", productID),
+			)
+		}
+		if err := ps.cacheService.InvalidateActiveProductsListCache(); err != nil {
+			ps.logger.Warn("Failed to invalidate active products list cache after product deletion",
+				gecho.Field("error", err),
+				gecho.Field("product_id", productID),
+			)
+		}
+	}()
+
+	ps.logger.Info("Product deleted successfully",
+		gecho.Field("product_id", productID),
+		gecho.Field("duration", time.Since(startTime)),
+	)
+	return nil
+}
