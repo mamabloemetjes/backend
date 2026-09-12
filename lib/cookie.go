@@ -1,25 +1,54 @@
 package lib
 
 import (
-	"mamabloemetjes_server/config"
+	"log"
 	"net/http"
+	"net/url"
+	"sync"
 	"time"
+
+	"mamabloemetjes_server/config"
 )
+
+var (
+	cookieDomainOnce sync.Once
+	cookieDomain     string
+)
+
+// resolveCookieDomain parses config.Server.ServerURL once and caches the
+// bare hostname to use as the cookie Domain attribute. Fails fast if the
+// value is missing or malformed, rather than silently issuing cookies
+// with an empty/wrong domain.
+func resolveCookieDomain() string {
+	cookieDomainOnce.Do(func() {
+		cfg := config.GetConfig()
+
+		u, err := url.Parse(cfg.Server.ServerURL)
+		if err != nil || u.Hostname() == "" {
+			log.Fatalf("lib: invalid config.Server.ServerURL for cookie domain: %q (err=%v)", cfg.Server.ServerURL, err)
+		}
+
+		cookieDomain = u.Hostname()
+	})
+
+	return cookieDomain
+}
+
+// cookieSecuritySettings returns the SameSite/Secure/Domain values to use
+// based on environment. In production, cookies are set with SameSite=None
+// and Secure=true, scoped to the API's own host (host-only cookie) since
+// the frontend and API are on different registrable domains.
+func cookieSecuritySettings() (sameSite http.SameSite, secure bool, domain string) {
+	if !config.IsProduction() {
+		return http.SameSiteLaxMode, false, ""
+	}
+
+	return http.SameSiteNoneMode, true, resolveCookieDomain()
+}
 
 // SetCookie sets a secure, HttpOnly cookie for authentication/session usage
 func SetCookie(key, val string, expiry time.Time, w http.ResponseWriter) {
-	isProduction := config.IsProduction()
-
-	sameSite := http.SameSiteLaxMode
-	secure := false
-	domain := ""
-
-	if isProduction {
-		// Required for cross-subdomain cookies (www <-> api)
-		sameSite = http.SameSiteNoneMode
-		secure = true
-		domain = ".roosvansharon.nl"
-	}
+	sameSite, secure, domain := cookieSecuritySettings()
 
 	cookie := &http.Cookie{
 		Name:     key,
@@ -45,17 +74,7 @@ func GetCookieValue(key string, r *http.Request) (string, error) {
 
 // ClearCookie removes the cookie from the browser
 func ClearCookie(key string, w http.ResponseWriter) {
-	isProduction := config.IsProduction()
-
-	sameSite := http.SameSiteLaxMode
-	secure := false
-	domain := ""
-
-	if isProduction {
-		sameSite = http.SameSiteNoneMode
-		secure = true
-		domain = ".roosvansharon.nl"
-	}
+	sameSite, secure, domain := cookieSecuritySettings()
 
 	cookie := &http.Cookie{
 		Name:     key,
@@ -74,18 +93,7 @@ func ClearCookie(key string, w http.ResponseWriter) {
 
 // SetCSRFCookie sets a CSRF token cookie that must be readable by JavaScript
 func SetCSRFCookie(val string, expiry time.Time, w http.ResponseWriter) {
-	isProduction := config.IsProduction()
-
-	sameSite := http.SameSiteLaxMode
-	secure := false
-	domain := ""
-
-	if isProduction {
-		// CSRF cookie must be sent cross-subdomain
-		sameSite = http.SameSiteNoneMode
-		secure = true
-		domain = ".roosvansharon.nl"
-	}
+	sameSite, secure, domain := cookieSecuritySettings()
 
 	cookie := &http.Cookie{
 		Name:     CSRFCookieName,
