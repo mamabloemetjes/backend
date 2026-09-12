@@ -44,6 +44,7 @@ func (ar *AdminRoutesManager) RegisterRoutes(r chi.Router) {
 			r.Use(ar.mw.CSRFMiddleware())
 			r.Post("/products", ar.CreateProduct)
 			r.Put("/products", ar.UpdateProducts)
+			r.Delete("/products/{id}", ar.DeleteProduct)
 
 			// Order update routes
 			r.Post("/orders/{id}/payment-link", ar.AttachPaymentLink)
