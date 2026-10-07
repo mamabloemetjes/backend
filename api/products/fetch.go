@@ -1,7 +1,6 @@
 package products
 
 import (
-	"fmt"
 	"mamabloemetjes_server/handling"
 	"mamabloemetjes_server/lib"
 	"net/http"
@@ -142,9 +141,8 @@ func (p *ProductRoutesManager) FetchActiveProducts(w http.ResponseWriter, r *htt
 		}
 	}
 
+	// Dashes should be included in product type
 	productType := lib.SanitizeString(r.URL.Query().Get("product_type"), false, true)
-
-	fmt.Printf("Fetching active products with page: %d, pageSize: %d, productType: %s\n", page, pageSize, productType)
 
 	// Check if images should be included
 	includeImages := lib.SanitizeString(r.URL.Query().Get("include_images"), true, false) == "true"
