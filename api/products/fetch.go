@@ -141,7 +141,8 @@ func (p *ProductRoutesManager) FetchActiveProducts(w http.ResponseWriter, r *htt
 		}
 	}
 
-	productType := lib.SanitizeString(r.URL.Query().Get("product_type"), true, false)
+	// Dashes should be included in product type
+	productType := lib.SanitizeString(r.URL.Query().Get("product_type"), false, true)
 
 	// Check if images should be included
 	includeImages := lib.SanitizeString(r.URL.Query().Get("include_images"), true, false) == "true"
