@@ -15,6 +15,11 @@ services:
     ports:
       - "8081:8081"
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     dns:
       - 8.8.8.8
       - 8.8.4.4 # optional backup DNS
