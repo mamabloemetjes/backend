@@ -31,6 +31,46 @@ type CacheService struct {
 	client *redis.Client
 }
 
+func blacklistCacheKey(jti uuid.UUID) string {
+	return fmt.Sprintf("blacklist:%s", jti)
+}
+
+func userCacheKey(userID uuid.UUID) string {
+	return fmt.Sprintf("user:%s", userID)
+}
+
+func rateLimitCacheKey(ip, endpoint string) string {
+	return fmt.Sprintf("ratelimit:%s:%s", ip, endpoint)
+}
+
+func productSKUCacheKey(sku string) string {
+	return fmt.Sprintf("product:sku:%s", sku)
+}
+
+func productIDCacheKey(id uuid.UUID, includeImages bool) string {
+	return fmt.Sprintf("product:id:%s:images:%v", id, includeImages)
+}
+
+func productIDCachePattern(id uuid.UUID) string {
+	return fmt.Sprintf("product:id:%s:*", id)
+}
+
+func productCountCacheKey(filterKey string) string {
+	return fmt.Sprintf("products:count:%s", filterKey)
+}
+
+func activeProductsCachePattern() string {
+	return "products:active:*"
+}
+
+func productCountCachePattern() string {
+	return "products:count:*"
+}
+
+func allProductCachePatterns() []string {
+	return []string{"product:*", "products:*"}
+}
+
 func NewCacheService(logger *gecho.Logger, cfg *structs.Config) *CacheService {
 	return &CacheService{
 		logger: logger,
@@ -160,13 +200,17 @@ func isRetryableError(err error) bool {
 
 // Set sets a key with TTL and automatic retry logic
 func (cs *CacheService) Set(key string, value any, ttl time.Duration) error {
-	return cs.withRetry(func() error {
+	started := time.Now()
+	err := cs.withRetry(func() error {
 		return cs.client.Set(redisCtx, key, value, ttl).Err()
 	}, 3)
+	observeCacheOperation("set", err, started)
+	return err
 }
 
 // Get retrieves a key with automatic retry logic
 func (cs *CacheService) Get(key string) (string, error) {
+	started := time.Now()
 	var result string
 	var resultErr error
 
@@ -186,17 +230,22 @@ func (cs *CacheService) Get(key string) (string, error) {
 	}, 3)
 
 	if err != nil {
+		observeCacheOperation("get", err, started)
 		return "", err
 	}
 
+	observeCacheOperation("get", resultErr, started)
 	return result, resultErr
 }
 
 // Delete removes a key with automatic retry logic
 func (cs *CacheService) Delete(key string) error {
-	return cs.withRetry(func() error {
+	started := time.Now()
+	err := cs.withRetry(func() error {
 		return cs.client.Del(redisCtx, key).Err()
 	}, 3)
+	observeCacheOperation("delete", err, started)
+	return err
 }
 
 // Exists checks if a key exists with automatic retry logic
@@ -222,13 +271,13 @@ func (cs *CacheService) BlacklistToken(jti uuid.UUID, exp time.Time) error {
 		ttl = time.Until(exp)
 	}
 
-	key := fmt.Sprintf("blacklist:%s", jti)
+	key := blacklistCacheKey(jti)
 	return cs.Set(key, "true", ttl)
 }
 
 // IsTokenBlacklisted checks if a JTI exists in Redis with retry logic
 func (cs *CacheService) IsTokenBlacklisted(jti uuid.UUID) (bool, error) {
-	key := fmt.Sprintf("blacklist:%s", jti.String())
+	key := blacklistCacheKey(jti)
 	val, err := cs.Get(key)
 	if err != nil {
 		return false, err
@@ -239,7 +288,7 @@ func (cs *CacheService) IsTokenBlacklisted(jti uuid.UUID) (bool, error) {
 
 // Get UserFromCache retrieves a user object from cache using userID
 func (cs *CacheService) GetUserFromCache(userID uuid.UUID) (*tables.User, error) {
-	key := fmt.Sprintf("user:%s", userID.String())
+	key := userCacheKey(userID)
 	val, err := cs.Get(key)
 	if err != nil {
 		return nil, err
@@ -264,7 +313,7 @@ func (cs *CacheService) SetUserInCache(user *tables.User) error {
 		// Nothing to cache
 		return nil
 	}
-	key := fmt.Sprintf("user:%s", user.Id.String())
+	key := userCacheKey(user.Id)
 	data, err := json.Marshal(user)
 	if err != nil {
 		return err
@@ -275,19 +324,19 @@ func (cs *CacheService) SetUserInCache(user *tables.User) error {
 
 // DeleteUserFromCache removes a user object from cache
 func (cs *CacheService) DeleteUserFromCache(userID uuid.UUID) error {
-	key := fmt.Sprintf("user:%s", userID.String())
+	key := userCacheKey(userID)
 	return cs.Delete(key)
 }
 
 // SetRateLimit sets a rate limit counter for an IP/endpoint combination
 func (cs *CacheService) SetRateLimit(ip, endpoint string, count int, ttl time.Duration) error {
-	key := fmt.Sprintf("ratelimit:%s:%s", ip, endpoint)
+	key := rateLimitCacheKey(ip, endpoint)
 	return cs.Set(key, count, ttl)
 }
 
 // GetRateLimit retrieves the current rate limit count for an IP/endpoint
 func (cs *CacheService) GetRateLimit(ip, endpoint string) (int, error) {
-	key := fmt.Sprintf("ratelimit:%s:%s", ip, endpoint)
+	key := rateLimitCacheKey(ip, endpoint)
 	val, err := cs.Get(key)
 	if err != nil {
 		return 0, err
@@ -307,25 +356,20 @@ func (cs *CacheService) GetRateLimit(ip, endpoint string) (int, error) {
 
 // IncrementRateLimit atomically increments a rate limit counter
 func (cs *CacheService) IncrementRateLimit(ip, endpoint string, ttl time.Duration) (int, error) {
-	key := fmt.Sprintf("ratelimit:%s:%s", ip, endpoint)
+	started := time.Now()
+	key := rateLimitCacheKey(ip, endpoint)
 
-	var result int64
-	err := cs.withRetry(func() error {
-		val, err := cs.client.Incr(redisCtx, key).Result()
-		if err != nil {
-			return err
-		}
-		result = val
+	const script = `
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+  redis.call("EXPIRE", KEYS[1], ARGV[1])
+end
+return count
+`
 
-		// Set expiration only on first increment
-		if val == 1 {
-			return cs.client.Expire(redisCtx, key, ttl).Err()
-		}
-
-		return nil
-	}, 3)
-
-	return int(result), err
+	result, err := cs.client.Eval(redisCtx, script, []string{key}, int(ttl.Seconds())).Int()
+	observeCacheOperation("rate_limit", err, started)
+	return result, err
 }
 
 // Ping tests the Redis connection
@@ -351,7 +395,7 @@ func (cs *CacheService) GetConnectionStats() map[string]any {
 
 // GetRateLimitStatus returns current rate limit information for debugging
 func (cs *CacheService) GetRateLimitStatus(ip, endpoint string) (map[string]any, error) {
-	key := fmt.Sprintf("ratelimit:%s:%s", ip, endpoint)
+	key := rateLimitCacheKey(ip, endpoint)
 
 	var result map[string]any
 
@@ -395,14 +439,31 @@ func (cs *CacheService) GetRateLimitStatus(ip, endpoint string) (map[string]any,
 // Product Caching Methods
 // ============================================================================
 
-// GetActiveProductsList retrieves cached active products list
-func (cs *CacheService) GetActiveProductsList(page, pageSize int, includeImages bool, productType string) ([]tables.Product, error) {
+func activeProductsCacheKey(page, pageSize int, includeImages bool, productType string) string {
 	if productType == "" {
 		productType = "all"
 	}
-	key := fmt.Sprintf("products:active:page:%d:size:%d:type:%s:images:%v", page, pageSize, productType, includeImages)
 
-	products, err := getJSON[[]tables.Product](cs, key)
+	return fmt.Sprintf(
+		"products:active:page:%d:size:%d:type:%s:images:%v",
+		page,
+		pageSize,
+		productType,
+		includeImages,
+	)
+}
+
+// GetActiveProductsList retrieves cached active products list
+type cachedActiveProducts struct {
+	Products   []tables.Product `json:"products"`
+	TotalItems int              `json:"total_items"`
+	TotalPages int              `json:"total_pages"`
+}
+
+func (cs *CacheService) GetActiveProductsList(page, pageSize int, includeImages bool, productType string) (*cachedActiveProducts, error) {
+	key := activeProductsCacheKey(page, pageSize, includeImages, productType)
+
+	products, err := getJSON[cachedActiveProducts](cs, key)
 	if err != nil {
 		cs.logger.Warn("Failed to get active products from cache", "error", err, "key", key)
 		return nil, err
@@ -412,27 +473,28 @@ func (cs *CacheService) GetActiveProductsList(page, pageSize int, includeImages 
 		return nil, nil
 	}
 
-	return *products, nil
+	return products, nil
 }
 
 // SetActiveProductsList caches active products list
-func (cs *CacheService) SetActiveProductsList(page, pageSize int, includeImages bool, products []tables.Product, productType string) error {
-	if productType == "" {
-		productType = "all"
-	}
-	key := fmt.Sprintf("products:active:page:%d:size:%d:images:%v", page, pageSize, includeImages)
+func (cs *CacheService) SetActiveProductsList(page, pageSize int, includeImages bool, products []tables.Product, totalItems, totalPages int, productType string) error {
+	key := activeProductsCacheKey(page, pageSize, includeImages, productType)
 	ttl := cs.getProductListTTL()
 
-	return setJSON(cs, key, products, ttl)
+	return setJSON(cs, key, cachedActiveProducts{
+		Products:   products,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+	}, ttl)
 }
 
 func (cs *CacheService) InvalidateActiveProductsListCache() error {
-	return cs.DeletePattern("products:active:*")
+	return cs.DeletePattern(activeProductsCachePattern())
 }
 
 // GetProductBySKU retrieves a cached product by SKU
 func (cs *CacheService) GetProductBySKU(sku string) (*tables.Product, error) {
-	key := fmt.Sprintf("product:sku:%s", sku)
+	key := productSKUCacheKey(sku)
 
 	product, err := getJSON[tables.Product](cs, key)
 	if err != nil {
@@ -449,7 +511,7 @@ func (cs *CacheService) GetProductBySKU(sku string) (*tables.Product, error) {
 
 // SetProductBySKU caches a product by SKU
 func (cs *CacheService) SetProductBySKU(product *tables.Product) error {
-	key := fmt.Sprintf("product:sku:%s", product.SKU)
+	key := productSKUCacheKey(product.SKU)
 	ttl := cs.getProductListTTL()
 
 	cs.logger.Debug("Caching product by SKU", "sku", product.SKU, "ttl", ttl)
@@ -459,7 +521,7 @@ func (cs *CacheService) SetProductBySKU(product *tables.Product) error {
 
 // GetProductByID retrieves a cached product by ID
 func (cs *CacheService) GetProductByID(id uuid.UUID, includeImages bool) (*tables.Product, error) {
-	key := fmt.Sprintf("product:id:%s:images:%v", id.String(), includeImages)
+	key := productIDCacheKey(id, includeImages)
 
 	product, err := getJSON[tables.Product](cs, key)
 	if err != nil {
@@ -476,7 +538,7 @@ func (cs *CacheService) GetProductByID(id uuid.UUID, includeImages bool) (*table
 
 // SetProductByID caches a product by ID
 func (cs *CacheService) SetProductByID(product *tables.Product, includeImages bool) error {
-	key := fmt.Sprintf("product:id:%s:images:%v", product.ID.String(), includeImages)
+	key := productIDCacheKey(product.ID, includeImages)
 	ttl := cs.getProductListTTL()
 
 	return setJSON(cs, key, product, ttl)
@@ -484,7 +546,7 @@ func (cs *CacheService) SetProductByID(product *tables.Product, includeImages bo
 
 // GetProductCount retrieves cached product count
 func (cs *CacheService) GetProductCount(filterKey string) (*int, error) {
-	key := fmt.Sprintf("products:count:%s", filterKey)
+	key := productCountCacheKey(filterKey)
 
 	count, err := getJSON[int](cs, key)
 	if err != nil {
@@ -501,7 +563,7 @@ func (cs *CacheService) GetProductCount(filterKey string) (*int, error) {
 
 // SetProductCount caches product count
 func (cs *CacheService) SetProductCount(filterKey string, count int) error {
-	key := fmt.Sprintf("products:count:%s", filterKey)
+	key := productCountCacheKey(filterKey)
 	ttl := cs.getProductCountTTL()
 
 	return setJSON(cs, key, count, ttl)
@@ -513,41 +575,46 @@ func (cs *CacheService) SetProductCount(filterKey string, count int) error {
 
 // InvalidateUserCache removes a user from cache
 func (cs *CacheService) InvalidateUserCache(userID uuid.UUID) error {
-	key := fmt.Sprintf("user:%s", userID.String())
+	key := userCacheKey(userID)
 	return cs.Delete(key)
 }
 
 // InvalidateProductCaches removes all product-related caches
 // This should be called when any product is created, updated, or deleted
 func (cs *CacheService) InvalidateProductCaches(productID uuid.UUID) error {
+	started := time.Now()
 	cs.logger.Info("Invalidating product caches", "product_id", productID)
 
 	// First, get the product to find its SKU (if it exists in cache)
 	// This is best-effort - if it fails, we still delete pattern-based caches
-	productKey := fmt.Sprintf("product:id:%s:*", productID.String())
+	productKey := productIDCachePattern(productID)
 	if err := cs.DeletePattern(productKey); err != nil {
 		cs.logger.Warn("Failed to delete product ID cache", "product_id", productID, "error", err)
 	}
 
 	// Delete all active product lists (they may contain this product)
-	if err := cs.DeletePattern("products:active:*"); err != nil {
+	if err := cs.DeletePattern(activeProductsCachePattern()); err != nil {
 		cs.logger.Warn("Failed to delete active products cache", "error", err)
+		CacheInvalidations.WithLabelValues("error").Inc()
 		return err
 	}
 
 	// Delete all product counts
-	if err := cs.DeletePattern("products:count:*"); err != nil {
+	if err := cs.DeletePattern(productCountCachePattern()); err != nil {
 		cs.logger.Warn("Failed to delete product counts cache", "error", err)
+		CacheInvalidations.WithLabelValues("error").Inc()
 		return err
 	}
 
 	cs.logger.Info("Product caches invalidated successfully", "product_id", productID)
+	CacheInvalidations.WithLabelValues("success").Inc()
+	CacheOperationDuration.WithLabelValues("invalidate").Observe(time.Since(started).Seconds())
 	return nil
 }
 
 // InvalidateProductCacheBySKU removes a specific product cache by SKU
 func (cs *CacheService) InvalidateProductCacheBySKU(sku string) error {
-	key := fmt.Sprintf("product:sku:%s", sku)
+	key := productSKUCacheKey(sku)
 	return cs.Delete(key)
 }
 
@@ -556,12 +623,7 @@ func (cs *CacheService) InvalidateProductCacheBySKU(sku string) error {
 func (cs *CacheService) InvalidateAllProductCaches() error {
 	cs.logger.Warn("Invalidating ALL product caches")
 
-	patterns := []string{
-		"product:*",
-		"products:*",
-	}
-
-	for _, pattern := range patterns {
+	for _, pattern := range allProductCachePatterns() {
 		if err := cs.DeletePattern(pattern); err != nil {
 			cs.logger.Error("Failed to delete cache pattern", "pattern", pattern, "error", err)
 			return err
@@ -642,9 +704,11 @@ func getJSON[T any](cs *CacheService, key string) (*T, error) {
 	}
 
 	if val == "" {
+		CacheOperations.WithLabelValues("get", "miss").Inc()
 		return nil, nil // not found in cache
 	}
 
+	CacheOperations.WithLabelValues("get", "hit").Inc()
 	var result T
 	err = json.Unmarshal([]byte(val), &result)
 	if err != nil {

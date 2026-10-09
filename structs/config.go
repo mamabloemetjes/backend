@@ -20,6 +20,7 @@ type ServerConfig struct {
 	LogLevel          string        `validate:"required,oneof=debug info warn error"`  // debug, info, warn, error
 	ServerURL         string        `validate:"required,url"`                          // Base URL of the server
 	FrontendURL       string        `validate:"required,url"`                          // Base URL of the frontend
+	MonitoringToken   string        `validate:"omitempty,min=32"`                     // Token for internal health and metrics endpoints
 	ReadTimeout       time.Duration `validate:"required,min=1s"`                       // in seconds
 	WriteTimeout      time.Duration `validate:"required,min=1s"`                       // in seconds
 	IdleTimeout       time.Duration `validate:"required,min=1s"`                       // in seconds

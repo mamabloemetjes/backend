@@ -50,7 +50,6 @@ func (ar *AdminRoutesManager) ListOrders(w http.ResponseWriter, r *http.Request)
 			gecho.Field("page_size", pageSize))
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.fetchingOrders"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -82,7 +81,6 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -96,7 +94,6 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 			gecho.Field("order_id", orderId))
 		gecho.NotFound(w,
 			gecho.WithMessage("error.order.notFound"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -110,7 +107,6 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 			gecho.Field("order_id", orderId))
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.fetchingOrderLines"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -124,7 +120,6 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 			gecho.Field("address_id", order.AddressId))
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.fetchingAddress"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return

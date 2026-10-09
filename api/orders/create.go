@@ -1,9 +1,11 @@
 package orders
 
 import (
+	"errors"
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs"
 	"net/http"
+	"strings"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
@@ -14,7 +16,6 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidRequestBody"),
-			gecho.WithData(err),
 			gecho.Send(),
 		)
 		return
@@ -32,16 +33,22 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Create order using service (handles validation, pricing snapshots, email sending)
-	order, err := orm.orderService.CreateOrderFromRequest(r.Context(), body, userId)
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if len(idempotencyKey) > 128 {
+		gecho.BadRequest(w,
+			gecho.WithMessage("error.order.invalidIdempotencyKey"),
+			gecho.Send(),
+		)
+		return
+	}
+
+	order, err := orm.orderService.CreateOrderFromRequest(r.Context(), body, userId, idempotencyKey)
 	if err != nil {
+		orm.logger.Error("Failed to create order", gecho.Field("error", err))
 		// Check for specific business logic errors
-		errMsg := err.Error()
-		if errMsg == "product not found" ||
-			errMsg == "product is no longer available" ||
-			len(errMsg) > 0 && errMsg[:7] == "product" {
+		if errors.Is(err, lib.ErrProductUnavailable) {
 			gecho.BadRequest(w,
 				gecho.WithMessage("error.order.productUnavailable"),
-				gecho.WithData(map[string]string{"error": err.Error()}),
 				gecho.Send(),
 			)
 			return
@@ -49,26 +56,27 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.creationFailed"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
 	}
 
 	// Send confirmation email to customer and shop owner
-	go func() {
-		err := orm.emailService.SendOrderConfirmationEmail(order.Order.Email, order.Order.Name, order.Order.OrderNumber, order.OrderLines, order.Address)
-		if err != nil {
-			orm.logger.Error("Failed to send order confirmation email",
-				gecho.Field("error", err),
-				gecho.Field("email", order.Order.Email),
-				gecho.Field("order_number", order.Order.OrderNumber),
-			)
-		} else {
-			orm.logger.Info("Order confirmation email sent",
-				gecho.Field("order_number", order.Order.OrderNumber))
-		}
-	}()
+	if !order.Existing {
+		go func() {
+			err := orm.emailService.SendOrderConfirmationEmail(order.Order.Email, order.Order.Name, order.Order.OrderNumber, order.OrderLines, order.Address)
+			if err != nil {
+				orm.logger.Error("Failed to send order confirmation email",
+					gecho.Field("error", err),
+					gecho.Field("email", order.Order.Email),
+					gecho.Field("order_number", order.Order.OrderNumber),
+				)
+			} else {
+				orm.logger.Info("Order confirmation email sent",
+					gecho.Field("order_number", order.Order.OrderNumber))
+			}
+		}()
+	}
 
 	gecho.Success(w,
 		gecho.WithMessage("success.order.created"),

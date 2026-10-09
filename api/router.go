@@ -19,6 +19,7 @@ func App(
 
 	// Core infra
 	r.Use(chiware.RequestID)
+	r.Use(requestIDHeader)
 	r.Use(chiware.RealIP)
 	r.Use(chiware.Recoverer)
 
@@ -51,4 +52,13 @@ func App(
 	})
 
 	return r
+}
+
+func requestIDHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requestID := chiware.GetReqID(r.Context()); requestID != "" {
+			w.Header().Set("X-Request-ID", requestID)
+		}
+		next.ServeHTTP(w, r)
+	})
 }

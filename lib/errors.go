@@ -18,9 +18,11 @@ var (
 
 // Auth errors
 var (
-	ErrInvalidToken       = errors.New("invalid token")
-	ErrExpiredToken       = errors.New("expired token")
-	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrInvalidToken            = errors.New("invalid token")
+	ErrExpiredToken            = errors.New("expired token")
+	ErrInvalidCredentials      = errors.New("invalid credentials")
+	ErrProductUnavailable      = errors.New("product unavailable")
+	ErrInvalidStatusTransition = errors.New("invalid status transition")
 )
 
 // DatabaseError represents a detailed database error with context

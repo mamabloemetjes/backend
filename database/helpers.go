@@ -51,14 +51,14 @@ func RawExec(db *DB, ctx context.Context, query string, args ...any) (int, error
 	start := time.Now()
 	var rowsAffected int64
 
-	err := WithRetry(ctx, func() error {
+	err := func() error {
 		res, err := db.ExecContext(ctx, query, args...)
 		if err != nil {
 			return err
 		}
 		rowsAffected, err = res.RowsAffected()
 		return err
-	})
+	}()
 
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute raw command: %w (took %v)", err, time.Since(start))
@@ -69,22 +69,18 @@ func RawExec(db *DB, ctx context.Context, query string, args ...any) (int, error
 
 // Transaction executes a function within a database transaction with automatic retry
 func Transaction(db *DB, ctx context.Context, fn func(bun.Tx) error) error {
-	return WithRetry(ctx, func() error {
-		return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
-			return fn(tx)
-		})
+	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
+		return fn(tx)
 	})
 }
 
 // TransactionWithResult executes a function within a transaction and returns a result with automatic retry
 func TransactionWithResult[T any](db *DB, ctx context.Context, fn func(bun.Tx) (T, error)) (T, error) {
 	var result T
-	err := WithRetry(ctx, func() error {
-		return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
-			var err error
-			result, err = fn(tx)
-			return err
-		})
+	err := db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
+		var err error
+		result, err = fn(tx)
+		return err
 	})
 
 	return result, err
@@ -92,10 +88,8 @@ func TransactionWithResult[T any](db *DB, ctx context.Context, fn func(bun.Tx) (
 
 // TransactionWithOptions executes a transaction with custom options
 func TransactionWithOptions(db *DB, ctx context.Context, opts *sql.TxOptions, fn func(bun.Tx) error) error {
-	return WithRetry(ctx, func() error {
-		return db.RunInTx(ctx, opts, func(ctx context.Context, tx bun.Tx) error {
-			return fn(tx)
-		})
+	return db.RunInTx(ctx, opts, func(ctx context.Context, tx bun.Tx) error {
+		return fn(tx)
 	})
 }
 
@@ -106,9 +100,11 @@ func ReadOnlyTransaction(db *DB, ctx context.Context, fn func(bun.Tx) error) err
 
 // Pagination represents pagination parameters
 type Pagination struct {
-	Page     int `json:"page" validate:"required,min=1"`
-	PageSize int `json:"page_size" validate:"required,min=1,max=100"`
-	Total    int `json:"total" validate:"min=0"`
+	Page       int `json:"page" validate:"required,min=1"`
+	PageSize   int `json:"page_size" validate:"required,min=1,max=100"`
+	Total      int `json:"total" validate:"min=0"`
+	TotalItems int `json:"total_items" validate:"min=0"`
+	TotalPages int `json:"total_pages" validate:"min=0"`
 }
 
 // PaginationResult wraps paginated data with metadata
@@ -147,9 +143,11 @@ func Paginate[T any](q *QueryBuilder[T], ctx context.Context, page, pageSize int
 	return &PaginationResult[T]{
 		Data: data,
 		Pagination: Pagination{
-			Page:     page,
-			PageSize: pageSize,
-			Total:    total,
+			Page:       page,
+			PageSize:   pageSize,
+			Total:      total,
+			TotalItems: total,
+			TotalPages: (total + pageSize - 1) / pageSize,
 		},
 	}, nil
 }

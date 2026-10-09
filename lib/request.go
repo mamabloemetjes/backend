@@ -3,6 +3,7 @@ package lib
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -51,6 +52,14 @@ func ExtractAndValidateBody[T any](r *http.Request) (*T, error) {
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(&body); err != nil {
+		return nil, err
+	}
+
+	var trailing any
+	if err := dec.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return nil, errors.New("request body must contain a single JSON value")
+		}
 		return nil, err
 	}
 

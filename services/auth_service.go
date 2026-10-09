@@ -258,7 +258,6 @@ func (as *AuthService) RefreshAccessToken(refreshToken string) (*tables.AuthResp
 		return nil, lib.ErrExpiredToken
 	}
 
-	// TODO: check for blacklisted/revoked tokens
 	isBlacklisted, err := as.cacheService.IsTokenBlacklisted(claims.Jti)
 	if err != nil {
 		as.logger.Error("Failed to check if token is blacklisted", gecho.Field("error", err), gecho.Field("jti", claims.Jti))
@@ -268,6 +267,12 @@ func (as *AuthService) RefreshAccessToken(refreshToken string) (*tables.AuthResp
 	if isBlacklisted {
 		as.logger.Warn("Refresh token is blacklisted", gecho.Field("jti", claims.Jti))
 		return nil, lib.ErrInvalidToken
+	}
+
+	// Rotate refresh tokens by revoking the token that was just consumed.
+	if err := as.cacheService.BlacklistToken(claims.Jti, claims.Exp); err != nil {
+		as.logger.Error("Failed to revoke refresh token during rotation", gecho.Field("error", err), gecho.Field("jti", claims.Jti))
+		return nil, err
 	}
 
 	// get user

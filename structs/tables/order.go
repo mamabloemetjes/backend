@@ -8,9 +8,10 @@ import (
 
 type Order struct {
 	// Table Name and identifiers
-	tableName   struct{}  `bun:"table:orders,alias:o"`
-	Id          uuid.UUID `bun:"id,pk,type:uuid,default:gen_random_uuid()" json:"id" validate:"omitempty,uuid4"`
-	OrderNumber string    `bun:"order_number,notnull,unique" json:"order_number" validate:"omitempty,min=8,max=50"`
+	tableName      struct{}  `bun:"table:orders,alias:o"`
+	Id             uuid.UUID `bun:"id,pk,type:uuid,default:gen_random_uuid()" json:"id" validate:"omitempty,uuid4"`
+	OrderNumber    string    `bun:"order_number,notnull,unique" json:"order_number" validate:"omitempty,min=8,max=50"`
+	IdempotencyKey string    `bun:"idempotency_key" json:"-"`
 
 	// Customer Data
 	Name  string `bun:"name,notnull" json:"name" validate:"required,min=2,max=100"`

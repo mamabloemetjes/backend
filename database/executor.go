@@ -18,7 +18,7 @@ func (q *QueryBuilder[T]) All(ctx context.Context) ([]T, error) {
 		defer cancel()
 	}
 
-	err := WithRetry(ctx, func() error {
+	err := RetryWithBackoff(ctx, q.retryConfig, func() error {
 		data = nil // Reset on retry
 
 		// When relations are being preloaded, we need to use Model() with the slice
@@ -52,7 +52,7 @@ func (q *QueryBuilder[T]) First(ctx context.Context) (*T, error) {
 		defer cancel()
 	}
 
-	err := WithRetry(ctx, func() error {
+	err := RetryWithBackoff(ctx, q.retryConfig, func() error {
 		// Reset data on retry
 		data = *new(T)
 
@@ -87,7 +87,7 @@ func (q *QueryBuilder[T]) Count(ctx context.Context) (int, error) {
 		defer cancel()
 	}
 
-	err := WithRetry(ctx, func() error {
+	err := RetryWithBackoff(ctx, q.retryConfig, func() error {
 		query := q.buildBunQuery()
 		var err error
 		count, err = query.Count(ctx)
@@ -102,13 +102,23 @@ func (q *QueryBuilder[T]) Count(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-// Exists checks if any records match the query
+// Exists checks if any records match the query without counting every match.
 func (q *QueryBuilder[T]) Exists(ctx context.Context) (bool, error) {
-	count, err := q.Count(ctx)
-	if err != nil {
-		return false, err
+	if q.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, q.timeout)
+		defer cancel()
 	}
-	return count > 0, nil
+
+	var exists bool
+	err := RetryWithBackoff(ctx, q.retryConfig, func() error {
+		query := q.buildBunQuery().Limit(1)
+		var err error
+		exists, err = query.Exists(ctx)
+		return err
+	})
+
+	return exists, err
 }
 
 // Insert inserts a new record and returns it with automatic retry
@@ -120,7 +130,7 @@ func (q *QueryBuilder[T]) Insert(ctx context.Context, data *T) (*T, error) {
 		defer cancel()
 	}
 
-	err := WithRetry(ctx, func() error {
+	err := func() error {
 		query := q.db.NewInsert().Model(data)
 
 		if q.tableName != "" {
@@ -129,7 +139,7 @@ func (q *QueryBuilder[T]) Insert(ctx context.Context, data *T) (*T, error) {
 
 		_, err := query.Exec(ctx)
 		return err
-	})
+	}()
 
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
@@ -152,7 +162,7 @@ func (q *QueryBuilder[T]) InsertMany(ctx context.Context, data []T) ([]T, error)
 		defer cancel()
 	}
 
-	err := WithRetry(ctx, func() error {
+	err := func() error {
 		query := q.db.NewInsert().Model(&data)
 
 		if q.tableName != "" {
@@ -161,7 +171,7 @@ func (q *QueryBuilder[T]) InsertMany(ctx context.Context, data []T) ([]T, error)
 
 		_, err := query.Exec(ctx)
 		return err
-	})
+	}()
 
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
@@ -182,7 +192,7 @@ func (q *QueryBuilder[T]) Update(ctx context.Context, data any) (int, error) {
 		defer cancel()
 	}
 
-	err := WithRetry(ctx, func() error {
+	err := func() error {
 		var model T
 		query := q.db.NewUpdate().Model(&model)
 
@@ -213,7 +223,7 @@ func (q *QueryBuilder[T]) Update(ctx context.Context, data any) (int, error) {
 		}
 		rowsAffected, _ = res.RowsAffected()
 		return nil
-	})
+	}()
 
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
@@ -234,7 +244,7 @@ func (q *QueryBuilder[T]) UpdateReturning(ctx context.Context, data any) ([]T, e
 		defer cancel()
 	}
 
-	err := WithRetry(ctx, func() error {
+	err := func() error {
 		results = nil // Reset on retry
 		var model T
 		query := q.db.NewUpdate().Model(&model)
@@ -263,7 +273,7 @@ func (q *QueryBuilder[T]) UpdateReturning(ctx context.Context, data any) ([]T, e
 
 		_, err := query.Exec(ctx, &results)
 		return err
-	})
+	}()
 
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
@@ -284,7 +294,7 @@ func (q *QueryBuilder[T]) Delete(ctx context.Context) (int, error) {
 		defer cancel()
 	}
 
-	err := WithRetry(ctx, func() error {
+	err := func() error {
 		var model T
 		query := q.db.NewDelete().Model(&model)
 
@@ -301,7 +311,7 @@ func (q *QueryBuilder[T]) Delete(ctx context.Context) (int, error) {
 		}
 		rowsAffected, _ = res.RowsAffected()
 		return nil
-	})
+	}()
 
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
@@ -322,7 +332,7 @@ func (q *QueryBuilder[T]) DeleteReturning(ctx context.Context) ([]T, error) {
 		defer cancel()
 	}
 
-	err := WithRetry(ctx, func() error {
+	err := func() error {
 		results = nil // Reset on retry
 		var model T
 		query := q.db.NewDelete().Model(&model)
@@ -339,7 +349,7 @@ func (q *QueryBuilder[T]) DeleteReturning(ctx context.Context) ([]T, error) {
 
 		_, err := query.Exec(ctx, &results)
 		return err
-	})
+	}()
 
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type

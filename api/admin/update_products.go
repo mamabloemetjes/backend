@@ -64,12 +64,12 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 
 		if err := ar.productService.UpdateProduct(r.Context(), productUUID, serviceReq); err != nil {
 			ar.logger.Error("Failed to update product", gecho.Field("error", err), gecho.Field("product_id", productID))
-			totalErrors[productID] = err.Error()
+			totalErrors[productID] = "error.products.updateFailed"
 		}
 	}
 
 	if len(totalErrors) > 0 {
-		gecho.InternalServerError(w,
+		gecho.BadRequest(w,
 			gecho.WithMessage("error.products.someFailedToUpdate"),
 			gecho.WithData(map[string]any{"errors": totalErrors}),
 			gecho.Send(),

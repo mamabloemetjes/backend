@@ -42,40 +42,25 @@ type CreatedOrder struct {
 	Order      *tables.Order
 	OrderLines []*tables.OrderLine
 	Address    *tables.Address
+	Existing   bool
 }
 
 // CreateOrderFromRequest creates a complete order with address, order lines, and sends confirmation email
-func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs.OrderRequest, userId *uuid.UUID) (orderRes *CreatedOrder, err error) {
+func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs.OrderRequest, userId *uuid.UUID, idempotencyKey string) (orderRes *CreatedOrder, err error) {
 	os.logger.Info("CreateOrderFromRequest started", gecho.Field("products_count", len(req.Products)))
 
-	// Start a Bun transaction
-	os.logger.Info("Starting transaction")
-	tx, err := os.db.BeginTx(ctx, nil)
-	if err != nil {
-		os.logger.Error("Failed to begin transaction", gecho.Field("error", err))
-		return nil, lib.MapPgError(err)
-	}
-	os.logger.Info("Transaction started successfully", gecho.Field("tx_type", fmt.Sprintf("%T", tx)))
-
-	defer func() {
-		if p := recover(); p != nil {
-			stackTrace := string(debug.Stack())
-			os.logger.Error(fmt.Sprintf("PANIC RECOVERED: %v", p),
-				gecho.Field("panic_value", p),
-				gecho.Field("stack_trace", stackTrace))
-			tx.Rollback()
-			err = fmt.Errorf("panic recovered: %v", p)
-		} else if err != nil {
-			os.logger.Info("Rolling back transaction due to error", gecho.Field("error", err))
-			tx.Rollback()
-		} else {
-			os.logger.Info("Committing transaction")
-			err = tx.Commit()
+	if idempotencyKey != "" {
+		existingOrder, lookupErr := database.Query[tables.Order](os.db).
+			Where("idempotency_key", idempotencyKey).
+			WhereRaw("deleted_at IS NULL").
+			First(ctx)
+		if lookupErr == nil {
+			return &CreatedOrder{Order: existingOrder, Existing: true}, nil
 		}
-	}()
+	}
 
 	// Validate all products exist and are active
-	os.logger.Info("Validating product IDs")
+	os.logger.Debug("Validating product IDs")
 	productIds := make([]uuid.UUID, 0, len(req.Products))
 	for idStr := range req.Products {
 		id, parseErr := uuid.Parse(idStr)
@@ -85,34 +70,34 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 		}
 		productIds = append(productIds, id)
 	}
-	os.logger.Info("Product IDs validated", gecho.Field("count", len(productIds)))
+	os.logger.Debug("Product IDs validated", gecho.Field("count", len(productIds)))
 
 	// Fetch all products
-	os.logger.Info("Fetching products by IDs", gecho.Field("ids", productIds))
+	os.logger.Debug("Fetching products by IDs", gecho.Field("count", len(productIds)))
 	products, fetchErr := os.productService.GetProductsByIds(ctx, productIds)
 	if fetchErr != nil {
 		os.logger.Error("Failed to fetch products", gecho.Field("error", fetchErr))
 		err = fetchErr
 		return nil, err
 	}
-	os.logger.Info("Products fetched successfully", gecho.Field("count", len(products)))
+	os.logger.Debug("Products fetched successfully", gecho.Field("count", len(products)))
 
 	// Validate all products are active
-	os.logger.Info("Building product map and validating active status")
+	os.logger.Debug("Building product map and validating active status")
 	productMap := make(map[string]*tables.Product)
 	for _, product := range products {
-		os.logger.Info("Processing product",
+		os.logger.Debug("Processing product",
 			gecho.Field("id", product.ID),
 			gecho.Field("name", product.Name),
 			gecho.Field("active", product.IsActive))
 
 		if !product.IsActive {
-			err = fmt.Errorf("product %s (%s) is no longer available", product.Name, product.SKU)
+			err = fmt.Errorf("%w: %s (%s)", lib.ErrProductUnavailable, product.Name, product.SKU)
 			return nil, err
 		}
 		productMap[product.ID.String()] = product
 	}
-	os.logger.Info("Product map built", gecho.Field("map_size", len(productMap)))
+	os.logger.Debug("Product map built", gecho.Field("map_size", len(productMap)))
 
 	// Check if all requested products exist
 	unavailableProducts := []string{}
@@ -127,7 +112,7 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 	}
 
 	// Encrypt sensitive data BEFORE creating address/order
-	os.logger.Info("Starting encryption of sensitive data")
+	os.logger.Debug("Starting encryption of sensitive data")
 
 	// Encrypt customer contact info
 	encryptedEmail, err := lib.Encrypt(req.Email, os.cfg.Encryption.Key)
@@ -135,21 +120,21 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 		os.logger.Error("Failed to encrypt email", gecho.Field("error", err))
 		return nil, err
 	}
-	os.logger.Info("Email encrypted successfully")
+	os.logger.Debug("Email encrypted successfully")
 
 	encryptedPhone, err := lib.Encrypt(req.Phone, os.cfg.Encryption.Key)
 	if err != nil {
 		os.logger.Error("Failed to encrypt phone", gecho.Field("error", err))
 		return nil, err
 	}
-	os.logger.Info("Phone encrypted successfully")
+	os.logger.Debug("Phone encrypted successfully")
 
 	encryptedName, err := lib.Encrypt(req.Name, os.cfg.Encryption.Key)
 	if err != nil {
 		os.logger.Error("Failed to encrypt name", gecho.Field("error", err))
 		return nil, err
 	}
-	os.logger.Info("Name encrypted successfully")
+	os.logger.Debug("Name encrypted successfully")
 
 	// Encrypt customer note if provided
 	var encryptedNote string
@@ -159,7 +144,7 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 			os.logger.Error("Failed to encrypt note", gecho.Field("error", err))
 			return nil, err
 		}
-		os.logger.Info("Note encrypted successfully")
+		os.logger.Debug("Note encrypted successfully")
 	}
 
 	// Encrypt address fields
@@ -186,7 +171,7 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 		os.logger.Error("Failed to encrypt city", gecho.Field("error", err))
 		return nil, err
 	}
-	os.logger.Info("All address fields encrypted successfully")
+	os.logger.Debug("All address fields encrypted successfully")
 
 	// Create address with encrypted fields
 	addressId := uuid.New()
@@ -202,34 +187,57 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 		UpdatedAt:  time.Now(),
 	}
 
-	os.logger.Info("Inserting address", gecho.Field("address_id", addressId))
+	// Keep the transaction limited to related database writes.
+	os.logger.Debug("Starting transaction")
+	tx, err := os.db.BeginTx(ctx, nil)
+	if err != nil {
+		os.logger.Error("Failed to begin transaction", gecho.Field("error", err))
+		return nil, lib.MapPgError(err)
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			stackTrace := string(debug.Stack())
+			os.logger.Error(fmt.Sprintf("PANIC RECOVERED: %v", p),
+				gecho.Field("panic_value", p),
+				gecho.Field("stack_trace", stackTrace))
+			_ = tx.Rollback()
+			err = fmt.Errorf("panic recovered: %v", p)
+			return
+		}
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	os.logger.Debug("Inserting address", gecho.Field("address_id", addressId))
 	_, err = tx.NewInsert().Model(address).Exec(ctx)
 	if err != nil {
 		return nil, lib.MapPgError(err)
 	}
-	os.logger.Info("Address inserted successfully")
+	os.logger.Debug("Address inserted successfully")
 
 	// Create order
 	orderId := uuid.New()
 	orderNumber := lib.GenerateOrderNumber()
 
 	order := &tables.Order{
-		Id:            orderId,
-		OrderNumber:   orderNumber,
-		Name:          encryptedName,
-		Email:         encryptedEmail,
-		Phone:         encryptedPhone,
-		Note:          encryptedNote,
-		AddressId:     addressId,
-		PaymentLink:   "",
-		PaymentStatus: tables.PaymentStatusUnpaid,
-		Status:        tables.OrderStatusPending,
-		ShippingCents: uint64(req.ShippingCents),
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		Id:             orderId,
+		OrderNumber:    orderNumber,
+		Name:           encryptedName,
+		Email:          encryptedEmail,
+		Phone:          encryptedPhone,
+		Note:           encryptedNote,
+		AddressId:      addressId,
+		PaymentLink:    "",
+		PaymentStatus:  tables.PaymentStatusUnpaid,
+		Status:         tables.OrderStatusPending,
+		ShippingCents:  uint64(req.ShippingCents),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		IdempotencyKey: idempotencyKey,
 	}
 
-	os.logger.Info("Inserting order",
+	os.logger.Debug("Inserting order",
 		gecho.Field("order_id", orderId),
 		gecho.Field("order_number", orderNumber))
 	_, err = tx.NewInsert().Model(order).Exec(ctx)
@@ -261,18 +269,18 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 		orderLines = append(orderLines, orderLine)
 	}
 
-	os.logger.Info("Inserting order lines", gecho.Field("count", len(orderLines)))
+	os.logger.Debug("Inserting order lines", gecho.Field("count", len(orderLines)))
 	_, err = tx.NewInsert().Model(&orderLines).Exec(ctx)
 	if err != nil {
 		return nil, lib.MapPgError(err)
 	}
 
 	// Deactivate products that were purchased
-	os.logger.Info("Deactivating purchased products")
+	os.logger.Debug("Deactivating purchased products")
 	for idStr := range req.Products {
 		product := productMap[idStr]
 
-		os.logger.Info("Deactivating product",
+		os.logger.Debug("Deactivating product",
 			gecho.Field("product_id", product.ID),
 			gecho.Field("product_name", product.Name),
 			gecho.Field("product_sku", product.SKU))
@@ -292,7 +300,12 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 			return nil, lib.MapPgError(err)
 		}
 	}
-	os.logger.Info("All purchased products deactivated successfully")
+	os.logger.Debug("All purchased products deactivated successfully")
+
+	if err = tx.Commit(); err != nil {
+		os.logger.Error("Failed to commit order transaction", gecho.Field("error", err), gecho.Field("order_id", orderId))
+		return nil, lib.MapPgError(err)
+	}
 
 	// Send order confirmation email asynchronously (using original unencrypted data)
 	go func() {

@@ -26,7 +26,6 @@ func (ar *AdminRoutesManager) AttachPaymentLink(w http.ResponseWriter, r *http.R
 	if err != nil {
 		gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -51,7 +50,6 @@ func (ar *AdminRoutesManager) AttachPaymentLink(w http.ResponseWriter, r *http.R
 			gecho.Field("order_id", orderId))
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.attachingPaymentLink"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -71,7 +69,6 @@ func (ar *AdminRoutesManager) MarkOrderAsPaid(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -85,7 +82,6 @@ func (ar *AdminRoutesManager) MarkOrderAsPaid(w http.ResponseWriter, r *http.Req
 			gecho.Field("order_id", orderId))
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.markingAsPaid"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -105,7 +101,6 @@ func (ar *AdminRoutesManager) UpdateOrderStatus(w http.ResponseWriter, r *http.R
 	if err != nil {
 		gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -113,6 +108,14 @@ func (ar *AdminRoutesManager) UpdateOrderStatus(w http.ResponseWriter, r *http.R
 
 	// Parse status from form
 	body, err := lib.ExtractAndValidateBody[UpdateOrderStatusRequest](r)
+	if err != nil {
+		gecho.BadRequest(w,
+			gecho.WithMessage("error.order.invalidRequestBody"),
+			gecho.WithData(err),
+			gecho.Send(),
+		)
+		return
+	}
 
 	if body.Status == "" {
 		gecho.BadRequest(w,
@@ -134,7 +137,6 @@ func (ar *AdminRoutesManager) UpdateOrderStatus(w http.ResponseWriter, r *http.R
 		if err.Error() == "invalid status transition" {
 			gecho.BadRequest(w,
 				gecho.WithMessage("error.order.invalidStatusTransition"),
-				gecho.WithData(map[string]string{"error": err.Error()}),
 				gecho.Send(),
 			)
 			return
@@ -142,7 +144,6 @@ func (ar *AdminRoutesManager) UpdateOrderStatus(w http.ResponseWriter, r *http.R
 
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.updatingStatus"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -162,7 +163,6 @@ func (ar *AdminRoutesManager) DeleteOrder(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
@@ -176,7 +176,6 @@ func (ar *AdminRoutesManager) DeleteOrder(w http.ResponseWriter, r *http.Request
 			gecho.Field("order_id", orderId))
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.deletingOrder"),
-			gecho.WithData(map[string]string{"error": err.Error()}),
 			gecho.Send(),
 		)
 		return
