@@ -41,6 +41,7 @@ func Connect(logger *gecho.Logger) (*DB, error) {
 		pgdriver.WithDialTimeout(10*time.Second),
 		pgdriver.WithReadTimeout(dbCfg.ReadTimeout),
 		pgdriver.WithWriteTimeout(dbCfg.WriteTimeout),
+		pgdriver.WithTLSConfig(nil),
 	)
 
 	// Create SQL DB with connection pooling
