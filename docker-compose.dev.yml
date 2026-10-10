@@ -1,0 +1,16 @@
+services:
+  mamabloemetjes:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      # Source code, so air sees changes instantly
+      - .:/app
+      # Go caches live here (the dev image has the Go toolchain)
+      - go-build-cache:/root/.cache/go-build
+      - go-mod-cache:/go/pkg/mod
+
+volumes:
+  go-build-cache:
+  go-mod-cache:

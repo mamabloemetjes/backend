@@ -1,0 +1,17 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/server ./main.go"
+bin = "./tmp/server"
+include_ext = ["go"]
+exclude_dir = ["tmp", "vendor", "originals", "uploads", ".git"]
+delay = 200
+send_interrupt = true
+kill_delay = "500ms"
+
+[log]
+time = false
+
+[misc]
+clean_on_exit = true
