@@ -1,14 +1,31 @@
-# --- Stage 1: Build the Go binary ---
-FROM golang:1.25-alpine AS builder
+# syntax=docker/dockerfile:1
 
-RUN apk add --no-cache git
+# --- Dev stage: hot reload with air (only built with --target dev) ---
+FROM golang:1.27.2-alpine AS dev
+
+RUN apk add --no-cache git libwebp-tools
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go install github.com/air-verse/air@latest
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# Source is bind-mounted at runtime (see docker-compose.dev.yml)
+CMD ["air", "-c", ".air.toml"]
+
+
+# --- Stage 1: Build the Go binary ---
+FROM golang:1.27.2-alpine AS builder
 
 WORKDIR /app
 
 # Cache dependencies separately
-COPY go.mod .
-COPY go.sum .
-
+COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
@@ -18,10 +35,10 @@ COPY . .
 # Build binary with cache
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server ./main.go
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false -ldflags="-s -w" -o server ./main.go
 
 
-# --- Stage 2: Runtime image ---
+# --- Stage 2: Runtime image (must stay last: it is the default target) ---
 FROM alpine:3.20
 
 WORKDIR /app

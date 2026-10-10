@@ -12,8 +12,6 @@ services:
       - .env:/app/.env:ro
       - /srv/mamabloemetjes/originals:/app/originals
       - /srv/mamabloemetjes/uploads:/app/uploads
-      - go-build-cache:/root/.cache/go-build
-      - go-mod-cache:/go/pkg/mod
     ports:
       - "8081:8081"
     restart: unless-stopped
@@ -29,7 +27,3 @@ services:
 networks:
   mamabloemetjes-net:
     external: true
-
-volumes:
-  go-build-cache:
-  go-mod-cache:
