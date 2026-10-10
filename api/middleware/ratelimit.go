@@ -37,6 +37,10 @@ func (mw *Middleware) getRateLimitForEndpoint(path, method string) (int, time.Du
 		return mw.cfg.RateLimit.ExpensiveLimit, mw.cfg.RateLimit.ExpensiveWindow
 	}
 
+	if method == http.MethodGet && strings.HasPrefix(path, "/upload") {
+		return 0, 0 // No rate limit for uploads
+	}
+
 	// Default limit for everything else
 	return mw.cfg.RateLimit.GeneralLimit, mw.cfg.RateLimit.GeneralWindow
 }
@@ -105,9 +109,15 @@ func (mw *Middleware) RateLimitMiddleware() func(http.Handler) http.Handler {
 			// Get rate limit for this endpoint
 			limit, window := mw.getRateLimitForEndpoint(r.URL.Path, r.Method)
 
+			// Increment rate limit counter (synchronous call)
+			if limit == 0 {
+				// No rate limit for this endpoint
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			endpoint := mw.normalizeRateLimitEndpoint(r.URL.Path)
 
-			// Increment rate limit counter (synchronous call)
 			count, err := mw.cacheService.IncrementRateLimit(clientIP, endpoint, window)
 			if err != nil {
 				if isCriticalRateLimitedPath(r.URL.Path) {

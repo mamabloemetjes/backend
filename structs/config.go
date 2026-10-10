@@ -3,14 +3,15 @@ package structs
 import "time"
 
 type Config struct {
-	Server     *ServerConfig     `validate:"required"`
-	Cors       *CorsConfig       `validate:"required"`
-	Database   *DatabaseConfig   `validate:"required"`
-	Auth       *AuthConfig       `validate:"required"`
-	Cache      *CacheConfig      `validate:"required"`
-	RateLimit  *RateLimitConfig  `validate:"required"`
-	Email      *EmailConfig      `validate:"required"`
-	Encryption *EncryptionConfig `validate:"required"`
+	Server      *ServerConfig      `validate:"required"`
+	Cors        *CorsConfig        `validate:"required"`
+	Database    *DatabaseConfig    `validate:"required"`
+	Auth        *AuthConfig        `validate:"required"`
+	Cache       *CacheConfig       `validate:"required"`
+	RateLimit   *RateLimitConfig   `validate:"required"`
+	Email       *EmailConfig       `validate:"required"`
+	Encryption  *EncryptionConfig  `validate:"required"`
+	FileStorage *FileStorageConfig `validate:"required"`
 }
 
 type ServerConfig struct {
@@ -20,7 +21,7 @@ type ServerConfig struct {
 	LogLevel          string        `validate:"required,oneof=debug info warn error"`  // debug, info, warn, error
 	ServerURL         string        `validate:"required,url"`                          // Base URL of the server
 	FrontendURL       string        `validate:"required,url"`                          // Base URL of the frontend
-	MonitoringToken   string        `validate:"omitempty,min=32"`                     // Token for internal health and metrics endpoints
+	MonitoringToken   string        `validate:"omitempty,min=32"`                      // Token for internal health and metrics endpoints
 	ReadTimeout       time.Duration `validate:"required,min=1s"`                       // in seconds
 	WriteTimeout      time.Duration `validate:"required,min=1s"`                       // in seconds
 	IdleTimeout       time.Duration `validate:"required,min=1s"`                       // in seconds
@@ -111,4 +112,10 @@ type EmailConfig struct {
 
 type EncryptionConfig struct {
 	Key string `validate:"required,len=32"` // AES-256 encryption key (32 bytes)
+}
+
+type FileStorageConfig struct {
+	OriginalsDir   string `validate:"required,min=1,max=255"` // Path to original images directory
+	UploadDir      string `validate:"required,min=1,max=255"` // Path to uploaded images directory
+	MaxUploadBytes int64  `validate:"required,min=1"`         // Maximum upload size in bytes
 }

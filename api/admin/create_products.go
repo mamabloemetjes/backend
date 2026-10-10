@@ -33,7 +33,7 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 		for i, img := range body.Images {
 			ar.logger.Debug("Image received",
 				gecho.Field("index", i),
-				gecho.Field("url", img.URL),
+				gecho.Field("name", img.Name),
 				gecho.Field("alt_text", img.AltText),
 				gecho.Field("is_primary", img.IsPrimary),
 			)

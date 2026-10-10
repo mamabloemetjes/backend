@@ -45,6 +45,10 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	if opts.IncludeImages {
+		p.fileService.HydrateProducts(result.Products)
+	}
+
 	// Return successful response with metadata
 	gecho.Success(w,
 		gecho.WithData(map[string]any{
@@ -110,6 +114,10 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	if includeImages {
+		p.fileService.HydrateProduct(product)
+	}
+
 	// Return successful response
 	gecho.Success(w,
 		gecho.WithData(map[string]any{
@@ -154,6 +162,10 @@ func (p *ProductRoutesManager) FetchActiveProducts(w http.ResponseWriter, r *htt
 			gecho.Send(),
 		)
 		return
+	}
+
+	if includeImages {
+		p.fileService.HydrateProducts(result.Products)
 	}
 
 	// Return successful response with metadata

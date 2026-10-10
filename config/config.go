@@ -102,6 +102,11 @@ func GetConfig() *structs.Config {
 			Encryption: &structs.EncryptionConfig{
 				Key: getEnvAsString("ENCRYPTION_KEY", ""),
 			},
+			FileStorage: &structs.FileStorageConfig{
+				OriginalsDir:   getEnvAsString("ORIGINALS_DIR", ""),
+				UploadDir:      getEnvAsString("UPLOAD_DIR", ""),
+				MaxUploadBytes: int64(getEnvAsInt("MAX_FILE_SIZE", 10*1024*1024)), // 10 MB
+			},
 		}
 
 		// Validate the configuration
