@@ -28,7 +28,7 @@ func NewOrderRoutesManager(productService *services.ProductService, orderService
 
 func (orm *OrderRoutesManager) RegisterRoutes(r chi.Router) {
 	r.Route("/orders", func(r chi.Router) {
-		r.Post("/create", orm.CreateOrder)
+		r.With(orm.middleware.CSRFMiddleware()).Post("/create", orm.CreateOrder)
 		r.Route("/", func(r chi.Router) {
 			r.Use(orm.middleware.UserAuthMiddleware)
 			r.Get("/my-orders", orm.GetMyOrders)         // Requires authentication

@@ -2,8 +2,10 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"mamabloemetjes_server/database"
+	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs/tables"
 	"time"
 
@@ -16,13 +18,15 @@ type ProductService struct {
 	logger       *gecho.Logger
 	db           *database.DB
 	cacheService *CacheService
+	fileService  *FileService
 }
 
-func NewProductService(logger *gecho.Logger, db *database.DB, cacheService *CacheService) *ProductService {
+func NewProductService(logger *gecho.Logger, db *database.DB, cacheService *CacheService, fileService *FileService) *ProductService {
 	return &ProductService{
 		logger:       logger,
 		db:           db,
 		cacheService: cacheService,
+		fileService:  fileService,
 	}
 }
 
@@ -172,15 +176,15 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, incl
 
 	if product == nil {
 		ps.logger.Warn("Product not found", gecho.Field("id", id))
-		return nil, fmt.Errorf("product not found")
+		return nil, lib.ErrNotFound
 	}
 
 	// Cache the product asynchronously
-	go func() {
+	runBoundedCacheWrite(func() {
 		if err := ps.cacheService.SetProductByID(product, includeImages); err != nil {
 			ps.logger.Warn("Failed to cache product", gecho.Field("error", err), gecho.Field("id", id))
 		}
-	}()
+	})
 
 	ps.logger.Debug("Product fetched by ID",
 		gecho.Field("id", id),
@@ -198,19 +202,30 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 	if err != nil {
 		ps.logger.Warn("Failed to get active products from cache", gecho.Field("error", err))
 	} else if cachedProducts != nil {
+		totalItems := cachedProducts.TotalItems
+		if totalItems < len(cachedProducts.Products) {
+			totalItems = len(cachedProducts.Products)
+		}
+		totalPages := cachedProducts.TotalPages
+		if totalPages < 1 && totalItems > 0 {
+			totalPages = (totalItems + pageSize - 1) / pageSize
+		}
+
 		ps.logger.Debug("Active products retrieved from cache",
-			gecho.Field("count", len(cachedProducts)),
+			gecho.Field("count", len(cachedProducts.Products)),
 			gecho.Field("page", page),
 			gecho.Field("duration", time.Since(startTime)),
 		)
 
 		// Build result from cache
 		return &ProductListResult{
-			Products: cachedProducts,
+			Products: cachedProducts.Products,
 			Pagination: database.Pagination{
-				Page:     page,
-				PageSize: pageSize,
-				Total:    len(cachedProducts),
+				Page:       page,
+				PageSize:   pageSize,
+				Total:      totalItems,
+				TotalItems: totalItems,
+				TotalPages: totalPages,
 			},
 			Filters: ProductListOptions{
 				Page:          page,
@@ -239,11 +254,11 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 	}
 
 	// Cache the products asynchronously
-	go func() {
-		if err := ps.cacheService.SetActiveProductsList(page, pageSize, includeImages, result.Products, ""); err != nil {
+	runBoundedCacheWrite(func() {
+		if err := ps.cacheService.SetActiveProductsList(page, pageSize, includeImages, result.Products, result.Pagination.Total, result.Pagination.TotalPages, productType); err != nil {
 			ps.logger.Warn("Failed to cache active products", gecho.Field("error", err))
 		}
-	}()
+	})
 
 	return result, nil
 }
@@ -369,6 +384,7 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 		"price":      true,
 		"name":       true,
 		"sku":        true,
+		"is_active":  true,
 	}
 	if !validSortFields[opts.SortBy] {
 		return fmt.Errorf("invalid sort field: %s", opts.SortBy)
@@ -646,12 +662,6 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 					gecho.Field("product_id", productID),
 				)
 			}
-			if err := ps.cacheService.InvalidateActiveProductsListCache(); err != nil {
-				ps.logger.Warn("Failed to invalidate active products list cache after product update",
-					gecho.Field("error", err),
-					gecho.Field("product_id", productID),
-				)
-			}
 		}()
 
 		return nil
@@ -660,6 +670,14 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 
 func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID) error {
 	startTime := time.Now()
+
+	var images []tables.ProductImage
+	if err := ps.db.NewSelect().
+		Model(&images).
+		Where("product_id = ?", productID).
+		Scan(ctx); err != nil {
+		return fmt.Errorf("failed to load product images: %w", err)
+	}
 
 	// Delete product and its images in a transaction
 	err := database.Transaction(ps.db, ctx, func(tx bun.Tx) error {
@@ -685,16 +703,32 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID
 		return fmt.Errorf("failed to delete product: %w", err)
 	}
 
+	var fileDeleteErr error
+	for _, image := range images {
+		if image.Name == "" {
+			ps.logger.Warn("Product image has no local file name; files cannot be deleted",
+				gecho.Field("product_id", productID),
+				gecho.Field("image_id", image.ID),
+			)
+			continue
+		}
+		if err := ps.fileService.Delete(image.Name); err != nil {
+			ps.logger.Error("Failed to delete product image files",
+				gecho.Field("error", err),
+				gecho.Field("product_id", productID),
+				gecho.Field("image_name", image.Name),
+			)
+			fileDeleteErr = errors.Join(fileDeleteErr, fmt.Errorf("%s: %w", image.Name, err))
+		}
+	}
+	if fileDeleteErr != nil {
+		return fmt.Errorf("failed to delete product image files: %w", fileDeleteErr)
+	}
+
 	// Invalidate product caches asynchronously
 	go func() {
 		if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
 			ps.logger.Warn("Failed to invalidate product caches after deletion",
-				gecho.Field("error", err),
-				gecho.Field("product_id", productID),
-			)
-		}
-		if err := ps.cacheService.InvalidateActiveProductsListCache(); err != nil {
-			ps.logger.Warn("Failed to invalidate active products list cache after product deletion",
 				gecho.Field("error", err),
 				gecho.Field("product_id", productID),
 			)

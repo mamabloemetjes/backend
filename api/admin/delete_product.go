@@ -19,6 +19,10 @@ func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Reque
 	}
 
 	productID, err := uuid.Parse(productIDStr)
+	if err != nil {
+		gecho.BadRequest(w, gecho.WithMessage("error.products.invalidProductID"), gecho.Send())
+		return
+	}
 
 	err = ar.productService.DeleteProduct(r.Context(), productID)
 	if err != nil {

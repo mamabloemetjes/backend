@@ -11,17 +11,20 @@ type ProductRoutesManager struct {
 	logger         *gecho.Logger
 	productService *services.ProductService
 	emailService   *services.EmailService
+	fileService    *services.FileService
 }
 
 func NewProductRoutesManager(
 	logger *gecho.Logger,
 	productService *services.ProductService,
 	emailService *services.EmailService,
+	fileService *services.FileService,
 ) *ProductRoutesManager {
 	return &ProductRoutesManager{
 		logger:         logger,
 		productService: productService,
 		emailService:   emailService,
+		fileService:    fileService,
 	}
 }
 

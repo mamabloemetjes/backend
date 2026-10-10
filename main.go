@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"mamabloemetjes_server/api"
 	"mamabloemetjes_server/api/admin"
-	"mamabloemetjes_server/api/admin/health"
 	"mamabloemetjes_server/api/auth"
 	"mamabloemetjes_server/api/debug"
+	"mamabloemetjes_server/api/fs"
+	"mamabloemetjes_server/api/health"
 	"mamabloemetjes_server/api/middleware"
 	"mamabloemetjes_server/api/orders"
 	"mamabloemetjes_server/api/products"
@@ -69,14 +70,19 @@ func run() error {
 
 	// Initialize route managers
 	healthRoutes := health.NewHealthRoutesManager(serviceManager.HealthService)
-	productRoutes := products.NewProductRoutesManager(logger, serviceManager.ProductService, serviceManager.EmailService)
+	productRoutes := products.NewProductRoutesManager(logger, serviceManager.ProductService, serviceManager.EmailService, serviceManager.FilesystemService)
 	authRoutes := auth.NewAuthRoutesManager(logger, serviceManager.AuthService, serviceManager.EmailService, serviceManager.CacheService, serviceManager.OrderService, cfg, mw)
-	adminRoutes := admin.NewAdminRoutesManager(logger, serviceManager.ProductService, serviceManager.OrderService, mw, healthRoutes)
+	adminRoutes := admin.NewAdminRoutesManager(logger, serviceManager.ProductService, serviceManager.OrderService, mw)
 	ordersRoutes := orders.NewOrderRoutesManager(serviceManager.ProductService, serviceManager.OrderService, serviceManager.EmailService, mw, logger)
 	debugRoutes := debug.NewDebugRoutesManager(serviceManager.CacheService)
+	fileRoutes := fs.NewFileRoutesManager(logger, serviceManager.FilesystemService, cfg)
+
+	if err := serviceManager.FilesystemService.Init(); err != nil {
+		logger.Fatal("Failed to initialize file service", gecho.Field("error", err)) // or log.Fatalf
+	}
 
 	// Initialize main router manager
-	routerManager := api.NewRouterManager(productRoutes, authRoutes, adminRoutes, ordersRoutes, debugRoutes)
+	routerManager := api.NewRouterManager(productRoutes, healthRoutes, authRoutes, adminRoutes, ordersRoutes, fileRoutes, debugRoutes)
 
 	// Setup router
 	r := api.App(routerManager, mw, cfg)

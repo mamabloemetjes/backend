@@ -1,6 +1,7 @@
 package handling
 
 import (
+	"fmt"
 	"mamabloemetjes_server/services"
 	"net/http"
 	"strconv"
@@ -21,7 +22,6 @@ func ParseProductListOptions(r *http.Request) (*services.ProductListOptions, err
 	var err error
 	var val64 uint64
 	var valInt int
-	var valBool bool
 
 	// Parse pagination parameters
 	if page := query.Get("page"); page != "" {
@@ -40,14 +40,27 @@ func ParseProductListOptions(r *http.Request) (*services.ProductListOptions, err
 
 	// Parse boolean filters
 	if isActive := query.Get("is_active"); isActive != "" {
-		if valBool, err = strconv.ParseBool(isActive); err != nil {
-			return nil, err
+		isActiveValue, parseErr := strconv.ParseBool(strings.TrimSpace(isActive))
+		if parseErr != nil {
+			return nil, parseErr
 		}
-		opts.IsActive = &valBool
+		opts.IsActive = &isActiveValue
+	}
+
+	if status := strings.ToLower(strings.TrimSpace(query.Get("status"))); status != "" {
+		isActiveValue := status == "active"
+		if status != "active" && status != "sold" {
+			return nil, fmt.Errorf("invalid status: %s", status)
+		}
+		opts.IsActive = &isActiveValue
 	}
 
 	if searchTerm := query.Get("search"); searchTerm != "" {
 		opts.SearchTerm = searchTerm
+	}
+
+	if productType := query.Get("product_type"); productType != "" {
+		opts.ProductType = productType
 	}
 
 	// Parse price filters
@@ -102,10 +115,11 @@ func ParseProductListOptions(r *http.Request) (*services.ProductListOptions, err
 
 	// Parse include_images flag
 	if includeImages := query.Get("include_images"); includeImages != "" {
-		if valBool, err = strconv.ParseBool(includeImages); err != nil {
-			return nil, err
+		includeImagesValue, parseErr := strconv.ParseBool(strings.TrimSpace(includeImages))
+		if parseErr != nil {
+			return nil, parseErr
 		}
-		opts.IncludeImages = valBool
+		opts.IncludeImages = includeImagesValue
 	}
 
 	return opts, nil

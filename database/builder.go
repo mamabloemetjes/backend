@@ -55,7 +55,7 @@ type QueryBuilder[T any] struct {
 	offsetVal   *int
 
 	// Relations to preload
-	relations []string
+	relations []relationClause
 
 	// Options
 	distinct  bool
@@ -109,6 +109,11 @@ type OrderClause struct {
 	Direction string // "ASC" or "DESC"
 }
 
+type relationClause struct {
+	name  string
+	apply func(*bun.SelectQuery) *bun.SelectQuery
+}
+
 // OrderDirection represents sort direction
 type OrderDirection string
 
@@ -153,7 +158,7 @@ func Query[T any](db *DB) *QueryBuilder[T] {
 		orders:      []*OrderClause{},
 		groupBys:    []string{},
 		havings:     []*WhereClause{},
-		relations:   []string{},
+		relations:   []relationClause{},
 		retryConfig: DefaultRetryConfig(),
 	}
 }
@@ -385,7 +390,15 @@ func (q *QueryBuilder[T]) Offset(offset int) *QueryBuilder[T] {
 
 // Relation specifies a relation to preload (Bun style)
 func (q *QueryBuilder[T]) Relation(relation string, apply ...func(*bun.SelectQuery) *bun.SelectQuery) *QueryBuilder[T] {
-	q.relations = append(q.relations, relation)
+	var relationApply func(*bun.SelectQuery) *bun.SelectQuery
+	if len(apply) > 0 {
+		relationApply = apply[0]
+	}
+
+	q.relations = append(q.relations, relationClause{
+		name:  relation,
+		apply: relationApply,
+	})
 	return q
 }
 
@@ -584,7 +597,11 @@ func (q *QueryBuilder[T]) buildBunQueryWithModel(model any) *bun.SelectQuery {
 
 	// Apply relations (preloading)
 	for _, relation := range q.relations {
-		query = query.Relation(relation)
+		if relation.apply != nil {
+			query = query.Relation(relation.name, relation.apply)
+			continue
+		}
+		query = query.Relation(relation.name)
 	}
 
 	// Apply FOR UPDATE

@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"mamabloemetjes_server/api/admin/health"
+	"mamabloemetjes_server/api/health"
 	"net/http"
 	"strconv"
 	"time"

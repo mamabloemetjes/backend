@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"mamabloemetjes_server/api/admin/health"
 	"mamabloemetjes_server/api/middleware"
 	"mamabloemetjes_server/services"
 
@@ -10,11 +9,10 @@ import (
 )
 
 type AdminRoutesManager struct {
-	logger              *gecho.Logger
-	productService      *services.ProductService
-	orderService        *services.OrderService
-	mw                  *middleware.Middleware
-	healthRoutesManager *health.HealthRoutesManager
+	logger         *gecho.Logger
+	productService *services.ProductService
+	orderService   *services.OrderService
+	mw             *middleware.Middleware
 }
 
 func NewAdminRoutesManager(
@@ -22,14 +20,12 @@ func NewAdminRoutesManager(
 	productService *services.ProductService,
 	orderService *services.OrderService,
 	mw *middleware.Middleware,
-	healthRoutesManager *health.HealthRoutesManager,
 ) *AdminRoutesManager {
 	return &AdminRoutesManager{
-		logger:              logger,
-		productService:      productService,
-		orderService:        orderService,
-		mw:                  mw,
-		healthRoutesManager: healthRoutesManager,
+		logger:         logger,
+		productService: productService,
+		orderService:   orderService,
+		mw:             mw,
 	}
 }
 
@@ -55,10 +51,6 @@ func (ar *AdminRoutesManager) RegisterRoutes(r chi.Router) {
 			r.Post("/orders/{id}/mark-paid", ar.MarkOrderAsPaid)
 			r.Put("/orders/{id}/status", ar.UpdateOrderStatus)
 			r.Delete("/orders/{id}", ar.DeleteOrder)
-		})
-
-		r.Route("/health", func(r chi.Router) {
-			ar.healthRoutesManager.RegisterRoutes(r)
 		})
 	})
 }

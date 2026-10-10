@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
 
     -- Order Information
     order_number TEXT NOT NULL UNIQUE,
+    idempotency_key TEXT,
 
     -- Customer Data
     name TEXT NOT NULL,
@@ -80,6 +81,9 @@ CREATE TABLE IF NOT EXISTS public.orders (
         ON DELETE RESTRICT
 ) TABLESPACE pg_default;
 
+ALTER TABLE public.orders
+    ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+
 -- ============================================================================
 -- INDEXES FOR ORDERS TABLE
 -- ============================================================================
@@ -88,6 +92,10 @@ CREATE TABLE IF NOT EXISTS public.orders (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_order_number
     ON public.orders USING btree (order_number)
     TABLESPACE pg_default;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency_key
+    ON public.orders USING btree (idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
 
 -- NOTE: Indexes on encrypted fields (email, name, phone) removed
 -- Cannot index encrypted data - queries on these fields must be performed in application layer

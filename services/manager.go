@@ -8,12 +8,13 @@ import (
 )
 
 type ServiceManager struct {
-	AuthService    *AuthService
-	EmailService   *EmailService
-	CacheService   *CacheService
-	HealthService  *HealthService
-	ProductService *ProductService
-	OrderService   *OrderService
+	AuthService       *AuthService
+	EmailService      *EmailService
+	CacheService      *CacheService
+	HealthService     *HealthService
+	ProductService    *ProductService
+	FilesystemService *FileService
+	OrderService      *OrderService
 }
 
 func NewServiceManager(logger *gecho.Logger, cfg *structs.Config, db *database.DB) *ServiceManager {
@@ -21,15 +22,17 @@ func NewServiceManager(logger *gecho.Logger, cfg *structs.Config, db *database.D
 	cacheService := NewCacheService(logger, cfg)
 	emailService := NewEmailService(logger, cfg, db)
 	healthService := NewHealthService(logger, db)
-	productService := NewProductService(logger, db, cacheService)
+	filesystemService := NewFileService(logger, cfg)
+	productService := NewProductService(logger, db, cacheService, filesystemService)
 	orderService := NewOrderService(logger, cfg, db, productService, emailService)
 
 	return &ServiceManager{
-		AuthService:    authService,
-		EmailService:   emailService,
-		CacheService:   cacheService,
-		HealthService:  healthService,
-		ProductService: productService,
-		OrderService:   orderService,
+		AuthService:       authService,
+		EmailService:      emailService,
+		CacheService:      cacheService,
+		HealthService:     healthService,
+		ProductService:    productService,
+		FilesystemService: filesystemService,
+		OrderService:      orderService,
 	}
 }

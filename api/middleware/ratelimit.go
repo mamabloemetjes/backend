@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -36,38 +37,37 @@ func (mw *Middleware) getRateLimitForEndpoint(path, method string) (int, time.Du
 		return mw.cfg.RateLimit.ExpensiveLimit, mw.cfg.RateLimit.ExpensiveWindow
 	}
 
+	if method == http.MethodGet && strings.HasPrefix(path, "/upload") {
+		return 0, 0 // No rate limit for uploads
+	}
+
 	// Default limit for everything else
 	return mw.cfg.RateLimit.GeneralLimit, mw.cfg.RateLimit.GeneralWindow
 }
 
-// getClientIP extracts the real client IP from request headers
+// getClientIP extracts the client IP supplied by Cloudflare Tunnel.
 func (mw *Middleware) getClientIP(r *http.Request) string {
-	// Try X-Forwarded-For first (if behind proxy/load balancer)
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// X-Forwarded-For can contain multiple IPs, take the first one
-		ips := strings.Split(xff, ",")
-		if len(ips) > 0 {
-			return strings.TrimSpace(ips[0])
+	if ip := net.ParseIP(strings.TrimSpace(r.Header.Get("CF-Connecting-IP"))); ip != nil {
+		return ip.String()
+	}
+
+	// When the request did not come through Cloudflare, use the actual peer
+	// address rather than trusting client-controlled forwarding headers.
+	if host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr)); err == nil {
+		if ip := net.ParseIP(host); ip != nil {
+			return ip.String()
 		}
 	}
 
-	// Try X-Real-IP
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
+	if ip := net.ParseIP(strings.TrimSpace(r.RemoteAddr)); ip != nil {
+		return ip.String()
 	}
 
-	// Fallback to RemoteAddr
-	ip := r.RemoteAddr
-	// Remove port if present
-	if idx := strings.LastIndex(ip, ":"); idx != -1 {
-		ip = ip[:idx]
-	}
-
-	return ip
+	return strings.TrimSpace(r.RemoteAddr)
 }
 
-// generateRateLimitKey creates a unique cache key for rate limiting
-func (mw *Middleware) generateRateLimitKey(ip, endpoint string) string {
+// normalizeRateLimitEndpoint groups equivalent routes into bounded key buckets.
+func (mw *Middleware) normalizeRateLimitEndpoint(endpoint string) string {
 	// Normalize endpoint to group similar requests
 	// This prevents cache key explosion
 	normalizedEndpoint := endpoint
@@ -84,7 +84,7 @@ func (mw *Middleware) generateRateLimitKey(ip, endpoint string) string {
 		}
 	}
 
-	return fmt.Sprintf("%s:%s", ip, normalizedEndpoint)
+	return normalizedEndpoint
 }
 
 // RateLimitMiddleware implements sliding window rate limiting with minimal latency
@@ -109,13 +109,24 @@ func (mw *Middleware) RateLimitMiddleware() func(http.Handler) http.Handler {
 			// Get rate limit for this endpoint
 			limit, window := mw.getRateLimitForEndpoint(r.URL.Path, r.Method)
 
-			// Use endpoint path directly
-			endpoint := r.URL.Path
-
 			// Increment rate limit counter (synchronous call)
+			if limit == 0 {
+				// No rate limit for this endpoint
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			endpoint := mw.normalizeRateLimitEndpoint(r.URL.Path)
+
 			count, err := mw.cacheService.IncrementRateLimit(clientIP, endpoint, window)
 			if err != nil {
-				// Cache error - log and allow request (fail open)
+				if isCriticalRateLimitedPath(r.URL.Path) {
+					mw.logger.Error("Critical rate limit unavailable", gecho.Field("error", err), gecho.Field("endpoint", endpoint))
+					http.Error(w, "rate limiting temporarily unavailable", http.StatusServiceUnavailable)
+					return
+				}
+
+				// Public reads fail open so a Redis outage does not take down the catalogue.
 				mw.logger.Warn("Rate limit cache error, allowing request",
 					gecho.Field("error", err),
 					gecho.Field("ip", clientIP),
@@ -172,13 +183,19 @@ func (mw *Middleware) RateLimitMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
+func isCriticalRateLimitedPath(path string) bool {
+	return strings.HasPrefix(path, "/auth/") ||
+		strings.HasPrefix(path, "/orders/") ||
+		strings.HasPrefix(path, "/admin/")
+}
+
 // StrictRateLimitMiddleware is a stricter version that fails closed on cache errors
 // Use this for critical endpoints where you prefer to block on cache failure
 func (mw *Middleware) StrictRateLimitMiddleware(limit int, window time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			clientIP := mw.getClientIP(r)
-			endpoint := r.URL.Path
+			endpoint := mw.normalizeRateLimitEndpoint(r.URL.Path)
 
 			count, err := mw.cacheService.IncrementRateLimit(clientIP, endpoint, window)
 			if err != nil {

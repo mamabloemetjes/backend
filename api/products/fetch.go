@@ -1,6 +1,7 @@
 package products
 
 import (
+	"errors"
 	"mamabloemetjes_server/handling"
 	"mamabloemetjes_server/lib"
 	"net/http"
@@ -21,7 +22,6 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 		p.logger.Warn("Invalid query parameters", "error", err)
 		gecho.BadRequest(w,
 			gecho.WithMessage("error.invalidQueryParameters"),
-			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
 		return
@@ -40,10 +40,13 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 		p.logger.Error("Failed to fetch products", "error", err)
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.products.failedToFetch"),
-			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
 		return
+	}
+
+	if opts.IncludeImages {
+		p.fileService.HydrateProducts(result.Products)
 	}
 
 	// Return successful response with metadata
@@ -95,7 +98,7 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 	// Fetch product using the service
 	product, err := p.productService.GetProductByID(ctx, id, includeImages)
 	if err != nil {
-		if err.Error() == "product not found" {
+		if errors.Is(err, lib.ErrNotFound) {
 			gecho.NotFound(w,
 				gecho.WithMessage("error.products.notFound"),
 				gecho.Send(),
@@ -106,10 +109,13 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 		p.logger.Error("Failed to fetch product by ID", "id", id, "error", err)
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.products.failedToFetchOne"),
-			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
 		return
+	}
+
+	if includeImages {
+		p.fileService.HydrateProduct(product)
 	}
 
 	// Return successful response
@@ -153,10 +159,13 @@ func (p *ProductRoutesManager) FetchActiveProducts(w http.ResponseWriter, r *htt
 		p.logger.Error("Failed to fetch active products", "error", err)
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.products.failedToFetchActive"),
-			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
 		return
+	}
+
+	if includeImages {
+		p.fileService.HydrateProducts(result.Products)
 	}
 
 	// Return successful response with metadata
@@ -184,7 +193,6 @@ func (p *ProductRoutesManager) GetProductCount(w http.ResponseWriter, r *http.Re
 		p.logger.Warn("Invalid query parameters", "error", err)
 		gecho.BadRequest(w,
 			gecho.WithMessage("error.invalidQueryParameters"),
-			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
 		return
@@ -196,7 +204,6 @@ func (p *ProductRoutesManager) GetProductCount(w http.ResponseWriter, r *http.Re
 		p.logger.Error("Failed to count products", "error", err)
 		gecho.InternalServerError(w,
 			gecho.WithMessage("error.products.failedToCount"),
-			gecho.WithData(err.Error()),
 			gecho.Send(),
 		)
 		return

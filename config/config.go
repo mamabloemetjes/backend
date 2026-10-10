@@ -26,6 +26,7 @@ func GetConfig() *structs.Config {
 				LogLevel:          getEnvAsString("APP_LOG_LEVEL", "info"),
 				ServerURL:         getEnvAsString("APP_SERVER_URL", "http://localhost:8082"),
 				FrontendURL:       getEnvAsString("APP_FRONTEND_URL", "http://localhost:3000"),
+				MonitoringToken:   getEnvAsString("MONITORING_TOKEN", ""),
 				ReadTimeout:       getEnvAsTimeDuration("SERVER_READ_TIME_OUT", 15*time.Second),
 				WriteTimeout:      getEnvAsTimeDuration("SERVER_WRITE_TIME_OUT", 15*time.Second),
 				IdleTimeout:       getEnvAsTimeDuration("SERVER_IDLE_TIME_OUT", 60*time.Second),
@@ -101,6 +102,11 @@ func GetConfig() *structs.Config {
 			Encryption: &structs.EncryptionConfig{
 				Key: getEnvAsString("ENCRYPTION_KEY", ""),
 			},
+			FileStorage: &structs.FileStorageConfig{
+				OriginalsDir:   getEnvAsString("ORIGINALS_DIR", ""),
+				UploadDir:      getEnvAsString("UPLOAD_DIR", ""),
+				MaxUploadBytes: int64(getEnvAsInt("MAX_FILE_SIZE", 10*1024*1024)), // 10 MB
+			},
 		}
 
 		// Validate the configuration
@@ -141,6 +147,18 @@ func validateConfig(cfg *structs.Config) error {
 	// Ensure access token expiry is less than refresh token expiry
 	if cfg.Auth.AccessTokenExpiry >= cfg.Auth.RefreshTokenExpiry {
 		return fmt.Errorf("access token expiry (%v) must be less than refresh token expiry (%v)", cfg.Auth.AccessTokenExpiry, cfg.Auth.RefreshTokenExpiry)
+	}
+
+	if cfg.Server.Environment == "production" {
+		if cfg.Server.LogLevel == "debug" {
+			return fmt.Errorf("debug logging is not allowed in production")
+		}
+		if !cfg.RateLimit.Enabled {
+			return fmt.Errorf("rate limiting must be enabled in production")
+		}
+		if cfg.Server.MonitoringToken == "" {
+			return fmt.Errorf("monitoring token must be configured in production")
+		}
 	}
 
 	return nil
