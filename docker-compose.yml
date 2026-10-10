@@ -10,6 +10,8 @@ services:
       - .env
     volumes:
       - .env:/app/.env:ro
+      - /srv/mamabloemetjes/originals:/app/originals
+      - /srv/mamabloemetjes/uploads:/app/uploads
       - go-build-cache:/root/.cache/go-build
       - go-mod-cache:/go/pkg/mod
     ports:
