@@ -22,8 +22,8 @@ func NewServiceManager(logger *gecho.Logger, cfg *structs.Config, db *database.D
 	cacheService := NewCacheService(logger, cfg)
 	emailService := NewEmailService(logger, cfg, db)
 	healthService := NewHealthService(logger, db)
-	productService := NewProductService(logger, db, cacheService)
 	filesystemService := NewFileService(logger, cfg)
+	productService := NewProductService(logger, db, cacheService, filesystemService)
 	orderService := NewOrderService(logger, cfg, db, productService, emailService)
 
 	return &ServiceManager{

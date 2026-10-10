@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"mamabloemetjes_server/database"
 	"mamabloemetjes_server/lib"
@@ -17,13 +18,15 @@ type ProductService struct {
 	logger       *gecho.Logger
 	db           *database.DB
 	cacheService *CacheService
+	fileService  *FileService
 }
 
-func NewProductService(logger *gecho.Logger, db *database.DB, cacheService *CacheService) *ProductService {
+func NewProductService(logger *gecho.Logger, db *database.DB, cacheService *CacheService, fileService *FileService) *ProductService {
 	return &ProductService{
 		logger:       logger,
 		db:           db,
 		cacheService: cacheService,
+		fileService:  fileService,
 	}
 }
 
@@ -668,6 +671,14 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID) error {
 	startTime := time.Now()
 
+	var images []tables.ProductImage
+	if err := ps.db.NewSelect().
+		Model(&images).
+		Where("product_id = ?", productID).
+		Scan(ctx); err != nil {
+		return fmt.Errorf("failed to load product images: %w", err)
+	}
+
 	// Delete product and its images in a transaction
 	err := database.Transaction(ps.db, ctx, func(tx bun.Tx) error {
 		// Delete images first
@@ -690,6 +701,28 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID
 			gecho.Field("duration", time.Since(startTime)),
 		)
 		return fmt.Errorf("failed to delete product: %w", err)
+	}
+
+	var fileDeleteErr error
+	for _, image := range images {
+		if image.Name == "" {
+			ps.logger.Warn("Product image has no local file name; files cannot be deleted",
+				gecho.Field("product_id", productID),
+				gecho.Field("image_id", image.ID),
+			)
+			continue
+		}
+		if err := ps.fileService.Delete(image.Name); err != nil {
+			ps.logger.Error("Failed to delete product image files",
+				gecho.Field("error", err),
+				gecho.Field("product_id", productID),
+				gecho.Field("image_name", image.Name),
+			)
+			fileDeleteErr = errors.Join(fileDeleteErr, fmt.Errorf("%s: %w", image.Name, err))
+		}
+	}
+	if fileDeleteErr != nil {
+		return fmt.Errorf("failed to delete product image files: %w", fileDeleteErr)
 	}
 
 	// Invalidate product caches asynchronously

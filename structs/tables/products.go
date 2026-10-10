@@ -29,7 +29,6 @@ type ProductImage struct {
 	ID        uuid.UUID `bun:"id,pk,type:uuid,default:gen_random_uuid()" json:"id" validate:"omitempty,uuid4"`
 	ProductID uuid.UUID `bun:"product_id,type:uuid,notnull" json:"product_id" validate:"omitempty,uuid4"`
 	Name      string    `bun:"name,nullzero" json:"name,omitempty" validate:"omitempty,len=32,hexadecimal"`
-	URL       string    `bun:"url,nullzero" json:"url,omitempty" validate:"omitempty,url"`
 	SrcSet    string    `bun:"-" json:"srcset,omitempty"`
 	AltText   string    `bun:"alt_text" json:"alt_text,omitempty" validate:"omitempty,max=200"`
 	IsPrimary bool      `bun:"is_primary,notnull" json:"is_primary"`

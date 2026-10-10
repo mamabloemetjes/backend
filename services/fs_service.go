@@ -209,24 +209,38 @@ func (fss *FileService) Delete(name string) error {
 	if !validName.MatchString(name) {
 		return fmt.Errorf("invalid image name")
 	}
-	for _, dir := range []string{fss.cfg.FileStorage.UploadDir, fss.cfg.FileStorage.OriginalsDir} {
-		matches, _ := filepath.Glob(filepath.Join(dir, name+"*"))
-		for _, m := range matches {
-			os.Remove(m)
+
+	paths := []string{
+		filepath.Join(fss.cfg.FileStorage.OriginalsDir, name+".jpg"),
+		filepath.Join(fss.cfg.FileStorage.OriginalsDir, name+".png"),
+	}
+	for _, width := range sizes {
+		paths = append(paths,
+			filepath.Join(fss.cfg.FileStorage.UploadDir, fmt.Sprintf("%s-%d.webp", name, width)),
+		)
+	}
+
+	var deleteErr error
+	for _, path := range paths {
+		err := os.Remove(path)
+		if err == nil || errors.Is(err, os.ErrNotExist) {
+			continue
 		}
+		deleteErr = errors.Join(deleteErr, fmt.Errorf("%s: %w", path, err))
+	}
+	if deleteErr != nil {
+		return fmt.Errorf("delete image files: %w", deleteErr)
 	}
 	return nil
 }
 
-// Hydrate fills URL and SrcSet for images that live on this server.
-// Images without a name keep their legacy URL.
+// Hydrate fills SrcSet for images that live on this server.
 func (fss *FileService) HydrateImages(images []tables.ProductImage) {
 	for i := range images {
 		img := &images[i]
 		if img.Name == "" {
 			continue
 		}
-		img.URL = fss.URL(img.Name, 800)
 		img.SrcSet = fss.SrcSet(img.Name)
 	}
 }

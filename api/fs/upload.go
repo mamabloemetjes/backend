@@ -59,7 +59,6 @@ func (frm *FileRoutesManager) UploadFile(w http.ResponseWriter, r *http.Request)
 		gecho.WithMessage("success.file.uploaded"),
 		gecho.WithData(map[string]any{
 			"name":   name,
-			"url":    frm.fileService.URL(name, 800),
 			"srcset": frm.fileService.SrcSet(name),
 		}),
 		gecho.Send(),
