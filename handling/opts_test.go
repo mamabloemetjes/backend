@@ -5,16 +5,16 @@ import (
 	"testing"
 )
 
-func TestParseProductListOptionsPreservesBooleanStatusFilters(t *testing.T) {
+func TestParseProductListOptionsPreservesProductStatusFilters(t *testing.T) {
 	tests := []struct {
 		name     string
 		query    string
-		expected bool
+		expected string
 	}{
-		{name: "active", query: "?is_active=true", expected: true},
-		{name: "sold", query: "?is_active=false", expected: false},
-		{name: "sold status alias", query: "?status=sold", expected: false},
-		{name: "sold with images", query: "?is_active=false&include_images=true", expected: false},
+		{name: "active", query: "?status=active", expected: "active"},
+		{name: "inactive", query: "?status=inactive", expected: "inactive"},
+		{name: "sold status alias", query: "?status=sold", expected: "sold"},
+		{name: "sold with images", query: "?status=sold&include_images=true", expected: "sold"},
 	}
 
 	for _, test := range tests {
@@ -28,11 +28,11 @@ func TestParseProductListOptionsPreservesBooleanStatusFilters(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse options: %v", err)
 			}
-			if options.IsActive == nil {
-				t.Fatal("expected is_active filter to be set")
+			if options.Status == nil {
+				t.Fatal("expected status filter to be set")
 			}
-			if *options.IsActive != test.expected {
-				t.Fatalf("expected is_active=%t, got %t", test.expected, *options.IsActive)
+			if *options.Status != test.expected {
+				t.Fatalf("expected status=%s, got %s", test.expected, *options.Status)
 			}
 		})
 	}

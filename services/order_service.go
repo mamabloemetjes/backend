@@ -90,9 +90,9 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 		os.logger.Debug("Processing product",
 			gecho.Field("id", product.ID),
 			gecho.Field("name", product.Name),
-			gecho.Field("active", product.IsActive))
+			gecho.Field("status", product.Status))
 
-		if !product.IsActive {
+		if product.Status != "active" {
 			err = fmt.Errorf("%w: %s (%s)", lib.ErrProductUnavailable, product.Name, product.SKU)
 			return nil, err
 		}
@@ -289,7 +289,7 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 		// Set product as inactive
 		_, err = tx.NewUpdate().
 			Model((*tables.Product)(nil)).
-			Set("is_active = ?", false).
+			Set("status = ?", "sold").
 			Set("updated_at = ?", time.Now()).
 			Where("id = ?", product.ID).
 			Exec(ctx)
