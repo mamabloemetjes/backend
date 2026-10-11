@@ -38,7 +38,7 @@ type ProductListOptions struct {
 	PageSize int `json:"page_size"`
 
 	// Filters
-	IsActive      *bool      `json:"is_active,omitempty"`      // Filter by active status
+	Status        *string    `json:"status,omitempty"`         // Filter by product status
 	MinPrice      *uint64    `json:"min_price,omitempty"`      // Minimum price in cents
 	MaxPrice      *uint64    `json:"max_price,omitempty"`      // Maximum price in cents
 	SearchTerm    string     `json:"search_term,omitempty"`    // Search in name, description, SKU
@@ -237,11 +237,11 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 	}
 
 	// Cache miss - fetch from database
-	isActive := true
+	status := "active"
 	opts := &ProductListOptions{
 		Page:          page,
 		PageSize:      pageSize,
-		IsActive:      &isActive,
+		Status:        &status,
 		IncludeImages: includeImages,
 		SortBy:        "created_at",
 		SortDirection: "DESC",
@@ -384,7 +384,7 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 		"price":      true,
 		"name":       true,
 		"sku":        true,
-		"is_active":  true,
+		"status":     true,
 	}
 	if !validSortFields[opts.SortBy] {
 		return fmt.Errorf("invalid sort field: %s", opts.SortBy)
@@ -406,8 +406,8 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 // applyFilters applies all filter conditions to the query
 func (ps *ProductService) applyFilters(query *database.QueryBuilder[tables.Product], opts *ProductListOptions) *database.QueryBuilder[tables.Product] {
 	// Filter by active status (default to active only if not specified)
-	if opts.IsActive != nil {
-		query = query.Where("is_active", *opts.IsActive)
+	if opts.Status != nil {
+		query = query.Where("status", *opts.Status)
 	}
 
 	// Filter by price range
@@ -483,6 +483,10 @@ func (ps *ProductService) applySorting(query *database.QueryBuilder[tables.Produ
 func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Product) (*tables.Product, error) {
 	startTime := time.Now()
 
+	if product.Status == "" {
+		product.Status = "active"
+	}
+
 	// Generate UUID for product if not set (needed for image references)
 	if product.ID == uuid.Nil {
 		product.ID = uuid.New()
@@ -555,7 +559,7 @@ type UpdateProductRequest struct {
 	Tax         *uint64               `json:"tax,omitempty" validate:"omitempty,gte=0"`
 	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
 	ProductType *string               `json:"product_type,omitempty" validate:"omitempty,min=2,max=100"`
-	IsActive    *bool                 `json:"is_active,omitempty"`
+	Status      *string               `json:"status,omitempty" validate:"omitempty,oneof=active inactive sold"`
 	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
 }
 
@@ -582,8 +586,8 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 		if req.Description != nil {
 			updateData["description"] = *req.Description
 		}
-		if req.IsActive != nil {
-			updateData["is_active"] = *req.IsActive
+		if req.Status != nil {
+			updateData["status"] = *req.Status
 		}
 
 		if req.ProductType != nil {

@@ -39,21 +39,12 @@ func ParseProductListOptions(r *http.Request) (*services.ProductListOptions, err
 		opts.PageSize = valInt
 	}
 
-	// Parse boolean filters
-	if isActive := query.Get("is_active"); isActive != "" {
-		isActiveValue, parseErr := strconv.ParseBool(strings.TrimSpace(isActive))
-		if parseErr != nil {
-			return nil, parseErr
+	// Parse product status filters
+	if productStatus := strings.ToLower(strings.TrimSpace(query.Get("status"))); productStatus != "" {
+		if productStatus != "active" && productStatus != "inactive" && productStatus != "sold" {
+			return nil, fmt.Errorf("invalid product status: %s", productStatus)
 		}
-		opts.IsActive = &isActiveValue
-	}
-
-	if status := strings.ToLower(strings.TrimSpace(query.Get("status"))); status != "" {
-		isActiveValue := status == "active"
-		if status != "active" && status != "sold" {
-			return nil, fmt.Errorf("invalid status: %s", status)
-		}
-		opts.IsActive = &isActiveValue
+		opts.Status = &productStatus
 	}
 
 	if searchTerm := query.Get("search"); searchTerm != "" {
