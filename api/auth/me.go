@@ -44,7 +44,23 @@ func (ar *AuthRoutesManager) HandleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isBlacklisted, err := ar.cacheService.IsTokenBlacklisted(claims.Jti)
+	if err != nil {
+		ar.logger.Error("Failed to check access token blacklist", gecho.Field("error", err), gecho.Field("jti", claims.Jti))
+		response.Send(gecho.InternalServerError(w, gecho.WithMessage("error.internalServerError")))
+		return
+	}
+	if isBlacklisted {
+		response.Send(gecho.Unauthorized(w, gecho.WithMessage("error.auth.accessTokenRevoked")))
+		return
+	}
+
 	user, err := ar.authService.GetUserByID(claims.Sub)
+	if err != nil {
+		ar.logger.Error("Failed to load user for /auth/me", gecho.Field("error", err), gecho.Field("user_id", claims.Sub))
+		response.Send(gecho.Unauthorized(w, gecho.WithMessage("error.auth.sessionExpired")))
+		return
+	}
 	response.Send(gecho.Success(w,
 		gecho.WithData(user),
 	))
