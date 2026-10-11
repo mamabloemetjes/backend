@@ -47,12 +47,14 @@ func getEnvAsSlice(key string, defaultVal []string) []string {
 		parts := strings.Split(valueStr, ",")
 		result := make([]string, 0, len(parts))
 		for _, v := range parts {
-			trimmed := strings.TrimSpace(v)
+			trimmed := strings.Trim(strings.TrimSpace(v), `"'`)
 			if trimmed != "" {
 				result = append(result, trimmed)
 			}
 		}
-		return result
+		if len(result) > 0 {
+			return result
+		}
 	}
 	return defaultVal
 }

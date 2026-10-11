@@ -25,6 +25,10 @@ func App(
 	r.Use(chiware.RealIP)
 	r.Use(chiware.Recoverer)
 
+	// CORS must wrap rate limiting and other rejecting middleware so browser
+	// clients receive CORS headers on error responses as well.
+	r.Use(mw.SetupCORS().Handler)
+
 	// Limits & security
 	r.Use(mw.BodyLimit(int64(cfg.Server.MaxHeaderBytes)))
 	r.Use(mw.SecurityHeaders())
@@ -33,9 +37,6 @@ func App(
 	// Observability
 	r.Use(mw.SetupLoggerMiddleware())
 	r.Use(middleware.MetricsMiddleware)
-
-	// CORS (must be before auth / csrf)
-	r.Use(mw.SetupCORS().Handler)
 
 	// Register all routes
 	routerManager.RegisterRoutes(r)
