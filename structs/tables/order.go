@@ -51,8 +51,9 @@ type OrderLine struct {
 	LineTotal    uint64 `bun:"line_total,notnull" json:"line_total" validate:"required,gte=0"`        // quantity * unit_subtotal
 
 	// Keep reference to product for name/SKU changes
-	ProductName string `bun:"product_name,notnull" json:"product_name" validate:"required,min=2,max=200"` // Name when ordered
-	ProductSKU  string `bun:"product_sku,notnull" json:"product_sku" validate:"required,min=3,max=50"`    // SKU when ordered
+	ProductName      string `bun:"product_name,notnull" json:"product_name" validate:"required,min=2,max=200"` // Name when ordered
+	ProductSKU       string `bun:"product_sku,notnull" json:"product_sku" validate:"required,min=3,max=50"`    // SKU when ordered
+	ProductImageName string `bun:"-" json:"product_image_name,omitempty"`                                      // Current primary image for admin display
 }
 
 type OrderStatus string

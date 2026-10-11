@@ -17,9 +17,10 @@ type Product struct {
 	Subtotal    uint64         `bun:"subtotal,notnull" json:"subtotal" validate:"omitempty,gte=0"`   // computed: Price - Discount + Tax
 	Description string         `bun:"description,notnull" json:"description" validate:"required,min=10,max=2000"`
 	ProductType string         `bun:"product_type" json:"product_type" validate:"omitempty"`
-	Status      string         `bun:"status,notnull" json:"status" validate:"omitempty,oneof=active inactive sold"`
+	Status      string         `bun:"status,notnull" json:"status" validate:"omitempty,oneof=active inactive sold deleted"`
 	CreatedAt   time.Time      `bun:"created_at,notnull,default:now()" json:"created_at"`
 	UpdatedAt   time.Time      `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	DeletedAt   *time.Time     `bun:"deleted_at,nullzero" json:"deleted_at,omitempty"`
 	Images      []ProductImage `bun:"rel:has-many,join:id=product_id" json:"images,omitempty" validate:"omitempty,dive"` // slice is nil if no images
 }
 

@@ -623,6 +623,33 @@ func (os *OrderService) GetOrderLinesByOrderId(ctx context.Context, orderId uuid
 		result[i] = &orderLines[i]
 	}
 
+	productIDs := make([]any, 0, len(orderLines))
+	for _, line := range orderLines {
+		productIDs = append(productIDs, line.ProductId)
+	}
+	if len(productIDs) == 0 {
+		return result, nil
+	}
+
+	images, err := database.Query[tables.ProductImage](os.db).
+		WhereIn("product_id", productIDs).
+		OrderBy("is_primary", database.DESC).
+		OrderBy("position", database.ASC).
+		All(ctx)
+	if err != nil {
+		return nil, lib.MapPgError(err)
+	}
+
+	primaryImageByProduct := make(map[uuid.UUID]string, len(images))
+	for _, image := range images {
+		if _, exists := primaryImageByProduct[image.ProductID]; !exists {
+			primaryImageByProduct[image.ProductID] = image.Name
+		}
+	}
+	for _, line := range result {
+		line.ProductImageName = primaryImageByProduct[line.ProductId]
+	}
+
 	return result, nil
 }
 

@@ -41,7 +41,7 @@ func ParseProductListOptions(r *http.Request) (*services.ProductListOptions, err
 
 	// Parse product status filters
 	if productStatus := strings.ToLower(strings.TrimSpace(query.Get("status"))); productStatus != "" {
-		if productStatus != "active" && productStatus != "inactive" && productStatus != "sold" {
+		if productStatus != "active" && productStatus != "inactive" && productStatus != "sold" && productStatus != "deleted" {
 			return nil, fmt.Errorf("invalid product status: %s", productStatus)
 		}
 		opts.Status = &productStatus

@@ -100,6 +100,26 @@ func run() error {
 
 	// Graceful shutdown context
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		runCleanup := func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			if err := serviceManager.ProductService.PurgeExpiredDeletedProducts(ctx, 30*24*time.Hour); err != nil {
+				logger.Error("Failed to purge expired deleted products", gecho.Field("error", err))
+			}
+		}
+		runCleanup()
+		for {
+			select {
+			case <-ticker.C:
+				runCleanup()
+			case <-serverCtx.Done():
+				return
+			}
+		}
+	}()
 
 	// Listen for syscall signals for process interruption.
 	sig := make(chan os.Signal, 1)

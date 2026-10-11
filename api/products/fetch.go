@@ -27,6 +27,8 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 		))
 		return
 	}
+	active := "active"
+	opts.Status = &active
 
 	// Log the request
 	p.logger.Debug("Fetching products",
@@ -44,7 +46,6 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 		))
 		return
 	}
-
 	if opts.IncludeImages {
 		p.fileService.HydrateProducts(result.Products)
 	}
@@ -185,6 +186,8 @@ func (p *ProductRoutesManager) GetProductCount(w http.ResponseWriter, r *http.Re
 		))
 		return
 	}
+	active := "active"
+	opts.Status = &active
 
 	// Get count using the service
 	count, err := p.productService.GetProductCount(ctx, opts)
