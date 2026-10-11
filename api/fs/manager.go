@@ -37,5 +37,5 @@ func (frm *FileRoutesManager) RegisterRoutes(r chi.Router) {
 		r.Use(frm.mw.CSRFMiddleware())
 		r.Post("/upload", frm.UploadFile)
 	})
-	r.Handle("/uploads/*", frm.fileService.Handler())
+	r.Get("/uploads/{filename}", frm.fileService.Handler().ServeHTTP)
 }
