@@ -3,7 +3,7 @@ module mamabloemetjes_server
 go 1.27.2
 
 require (
-	github.com/MonkyMars/gecho v0.7.0 // direct
+	github.com/MonkyMars/gecho v0.8.0 // direct
 	github.com/disintegration/imaging v1.6.2
 	github.com/go-chi/chi/v5 v5.2.3 // direct
 	github.com/go-playground/validator/v10 v10.30.1
