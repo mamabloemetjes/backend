@@ -7,6 +7,7 @@ import (
 	"github.com/MonkyMars/gecho"
 
 	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/database"
 	"github.com/mamabloemetjes/backend/lib"
 	"github.com/mamabloemetjes/backend/structs"
 	"github.com/mamabloemetjes/backend/structs/tables"
@@ -70,9 +71,26 @@ func (mw *Middleware) AdminAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Check if user has admin role
-		if claims.Role != "admin" {
-			mw.logger.Warn("Non-admin user attempted to access admin route", gecho.Field("user_id", claims.Sub), gecho.Field("role", claims.Role))
+		// Read the current role from the database. The token role is only a
+		// hint; relying on it would allow an old admin token to survive a
+		// demotion and makes authorization dependent on token claims.
+		user, err := database.Query[tables.User](mw.authService.GetDB()).
+			Where("id", claims.Sub).
+			First(r.Context())
+		if err != nil {
+			mw.logger.Warn("Admin authorization user lookup failed",
+				gecho.Field("error", err),
+				gecho.Field("user_id", claims.Sub),
+			)
+			response.Send(gecho.Forbidden(w, gecho.WithMessage("error.auth.adminAccessRequired")))
+			return
+		}
+
+		if user.Role != "admin" {
+			mw.logger.Warn("Non-admin user attempted to access admin route",
+				gecho.Field("user_id", claims.Sub),
+				gecho.Field("role", user.Role),
+			)
 			response.Send(gecho.Forbidden(w, gecho.WithMessage("error.auth.adminAccessRequired")))
 			return
 		}

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,9 +57,9 @@ func GetConfig() *structs.Config {
 				WriteTimeout: getEnvAsTimeDuration("DB_WRITE_TIMEOUT", 5*time.Second),
 			},
 			Auth: &structs.AuthConfig{
-				AccessTokenSecret:  getEnvAsString("AUTH_ACCESS_TOKEN_SECRET", "default_access_secret"),
+				AccessTokenSecret:  getEnvAsString("AUTH_ACCESS_TOKEN_SECRET", ""),
 				AccessTokenExpiry:  getEnvAsTimeDuration("AUTH_ACCESS_TOKEN_EXPIRY", 15*time.Minute),
-				RefreshTokenSecret: getEnvAsString("AUTH_REFRESH_TOKEN_SECRET", "default_refresh_secret"),
+				RefreshTokenSecret: getEnvAsString("AUTH_REFRESH_TOKEN_SECRET", ""),
 				RefreshTokenExpiry: getEnvAsTimeDuration("AUTH_REFRESH_TOKEN_EXPIRY", 7*24*time.Hour),
 				CacheUserTTL:       getEnvAsTimeDuration("AUTH_CACHE_USER_TTL", 30*time.Minute),
 				BlacklistCacheTTL:  getEnvAsTimeDuration("AUTH_BLACKLIST_CACHE_TTL", 7*24*time.Hour),
@@ -125,6 +126,18 @@ func GetConfig() *structs.Config {
 
 // validateConfig performs additional custom validation checks
 func validateConfig(cfg *structs.Config) error {
+	for name, secret := range map[string]string{
+		"AUTH_ACCESS_TOKEN_SECRET":  cfg.Auth.AccessTokenSecret,
+		"AUTH_REFRESH_TOKEN_SECRET": cfg.Auth.RefreshTokenSecret,
+	} {
+		if strings.TrimSpace(secret) != secret {
+			return fmt.Errorf("%s must not contain leading or trailing whitespace", name)
+		}
+		if secret == "default_access_secret" || secret == "default_refresh_secret" {
+			return fmt.Errorf("%s uses an insecure default value", name)
+		}
+	}
+
 	// Ensure MaxIdleConns doesn't exceed PoolSize for cache
 	if cfg.Cache.MaxIdleConns > cfg.Cache.PoolSize {
 		return fmt.Errorf("cache MaxIdleConns (%d) cannot exceed PoolSize (%d)", cfg.Cache.MaxIdleConns, cfg.Cache.PoolSize)
