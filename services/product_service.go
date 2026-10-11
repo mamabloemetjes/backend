@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -151,6 +150,7 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, incl
 	// Cache miss - fetch from database
 	query := database.Query[tables.Product](ps.db).
 		Where("id", id).
+		Where("status != ?", "deleted").
 		Timeout(5 * time.Second)
 
 	query = query.Relation("Images", func(q *bun.SelectQuery) *bun.SelectQuery {
@@ -559,7 +559,7 @@ type UpdateProductRequest struct {
 	Tax         *uint64               `json:"tax,omitempty" validate:"omitempty,gte=0"`
 	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
 	ProductType *string               `json:"product_type,omitempty" validate:"omitempty,min=2,max=100"`
-	Status      *string               `json:"status,omitempty" validate:"omitempty,oneof=active inactive sold"`
+	Status      *string               `json:"status,omitempty" validate:"omitempty,oneof=active inactive sold deleted"`
 	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
 }
 
@@ -588,6 +588,12 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 		}
 		if req.Status != nil {
 			updateData["status"] = *req.Status
+			if *req.Status == "deleted" {
+				now := time.Now()
+				updateData["deleted_at"] = now
+			} else {
+				updateData["deleted_at"] = nil
+			}
 		}
 
 		if req.ProductType != nil {
@@ -675,28 +681,11 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID) error {
 	startTime := time.Now()
 
-	var images []tables.ProductImage
-	if err := ps.db.NewSelect().
-		Model(&images).
-		Where("product_id = ?", productID).
-		Scan(ctx); err != nil {
-		return fmt.Errorf("failed to load product images: %w", err)
-	}
-
-	// Delete product and its images in a transaction
-	err := database.Transaction(ps.db, ctx, func(tx bun.Tx) error {
-		// Delete images first
-		if _, err := database.Query[tables.ProductImage](ps.db).Where("product_id", productID.String()).Delete(ctx); err != nil {
-			return fmt.Errorf("failed to delete product images: %w", err)
-		}
-
-		// Delete the product
-		if _, err := database.Query[tables.Product](ps.db).Where("id", productID.String()).Delete(ctx); err != nil {
-			return fmt.Errorf("failed to delete product: %w", err)
-		}
-
-		return nil
-	})
+	now := time.Now()
+	result, err := database.Query[tables.Product](ps.db).
+		Where("id", productID.String()).
+		WhereOp("status", "!=", "deleted").
+		Update(ctx, map[string]any{"status": "deleted", "deleted_at": now})
 	if err != nil {
 		ps.logger.Error("Failed to delete product",
 			gecho.Field("error", err),
@@ -705,30 +694,25 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID
 		)
 		return fmt.Errorf("failed to delete product: %w", err)
 	}
-
-	var fileDeleteErr error
-	for _, image := range images {
-		if image.Name == "" {
-			ps.logger.Warn("Product image has no local file name; files cannot be deleted",
-				gecho.Field("product_id", productID),
-				gecho.Field("image_id", image.ID),
-			)
-			continue
+	if result == 0 {
+		product, lookupErr := database.Query[tables.Product](ps.db).
+			Where("id", productID.String()).
+			First(ctx)
+		if lookupErr != nil {
+			if lib.IsNotFound(lookupErr) {
+				return lib.ErrNotFound
+			}
+			return fmt.Errorf("failed to verify product deletion state: %w", lookupErr)
 		}
-		if err := ps.fileService.Delete(image.Name); err != nil {
-			ps.logger.Error("Failed to delete product image files",
-				gecho.Field("error", err),
+		if product.Status == "deleted" {
+			ps.logger.Info("Product was already soft deleted",
 				gecho.Field("product_id", productID),
-				gecho.Field("image_name", image.Name),
 			)
-			fileDeleteErr = errors.Join(fileDeleteErr, fmt.Errorf("%s: %w", image.Name, err))
+			return nil
 		}
-	}
-	if fileDeleteErr != nil {
-		return fmt.Errorf("failed to delete product image files: %w", fileDeleteErr)
+		return lib.ErrNotFound
 	}
 
-	// Invalidate product caches asynchronously
 	go func() {
 		if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
 			ps.logger.Warn("Failed to invalidate product caches after deletion",
@@ -738,9 +722,51 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID
 		}
 	}()
 
-	ps.logger.Info("Product deleted successfully",
+	ps.logger.Info("Product moved to deleted status",
 		gecho.Field("product_id", productID),
 		gecho.Field("duration", time.Since(startTime)),
 	)
+	return nil
+}
+
+// PurgeExpiredDeletedProducts permanently removes products after the retention period.
+func (ps *ProductService) PurgeExpiredDeletedProducts(ctx context.Context, retention time.Duration) error {
+	cutoff := time.Now().Add(-retention)
+	var products []tables.Product
+	if err := ps.db.NewSelect().Model(&products).
+		Where("status = ?", "deleted").
+		Where("deleted_at IS NOT NULL").
+		Where("deleted_at < ?", cutoff).
+		Scan(ctx); err != nil {
+		return fmt.Errorf("failed to find expired deleted products: %w", err)
+	}
+
+	for _, product := range products {
+		var images []tables.ProductImage
+		if err := ps.db.NewSelect().Model(&images).Where("product_id = ?", product.ID).Scan(ctx); err != nil {
+			return fmt.Errorf("failed to load images for expired product %s: %w", product.ID, err)
+		}
+		if err := database.Transaction(ps.db, ctx, func(tx bun.Tx) error {
+			if _, err := tx.NewDelete().Model((*tables.ProductImage)(nil)).Where("product_id = ?", product.ID).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to delete product images: %w", err)
+			}
+			if _, err := tx.NewDelete().Model((*tables.Product)(nil)).Where("id = ?", product.ID).Exec(ctx); err != nil {
+				return fmt.Errorf("failed to delete product: %w", err)
+			}
+			return nil
+		}); err != nil {
+			return fmt.Errorf("failed to purge product %s: %w", product.ID, err)
+		}
+		for _, image := range images {
+			if image.Name != "" {
+				if err := ps.fileService.Delete(image.Name); err != nil {
+					return fmt.Errorf("failed to delete image files for product %s: %w", product.ID, err)
+				}
+			}
+		}
+		if err := ps.cacheService.InvalidateProductCaches(product.ID); err != nil {
+			ps.logger.Warn("Failed to invalidate purged product cache", gecho.Field("error", err), gecho.Field("product_id", product.ID))
+		}
+	}
 	return nil
 }

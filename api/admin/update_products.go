@@ -20,7 +20,7 @@ type UpdateProductRequest struct {
 	Tax         *uint64               `json:"tax,omitempty" validate:"omitempty,gte=0"`
 	Subtotal    *uint64               `json:"subtotal,omitempty" validate:"omitempty,gte=0"`
 	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
-	Status      *string               `json:"status,omitempty" validate:"omitempty,oneof=active inactive sold"`
+	Status      *string               `json:"status,omitempty" validate:"omitempty,oneof=active inactive sold deleted"`
 	ProductType *string               `json:"product_type,omitempty" validate:"omitempty,min=2,max=100"`
 	Stock       *uint16               `json:"stock,omitempty" validate:"omitempty,gte=0"`
 	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
