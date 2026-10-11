@@ -150,7 +150,7 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, incl
 	// Cache miss - fetch from database
 	query := database.Query[tables.Product](ps.db).
 		Where("id", id).
-		Where("status != ?", "deleted").
+		WhereOp("status", "!=", "deleted").
 		Timeout(5 * time.Second)
 
 	query = query.Relation("Images", func(q *bun.SelectQuery) *bun.SelectQuery {

@@ -38,7 +38,7 @@ func GetConfig() *structs.Config {
 			Cors: &structs.CorsConfig{
 				AllowedOrigins:   getEnvAsSlice("CORS_ALLOW_ORIGINS", []string{"http://localhost:3000"}),
 				AllowedMethods:   getEnvAsSlice("CORS_ALLOW_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
-				AllowedHeaders:   getEnvAsSlice("CORS_ALLOW_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-CSRF-Token"}),
+				AllowedHeaders:   getEnvAsSlice("CORS_ALLOW_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-CSRF-Token", "Idempotency-Key"}),
 				AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", true),
 				ExposedHeaders:   getEnvAsSlice("CORS_EXPOSED_HEADERS", []string{"Content-Length", "Authorization", "Set-Cookie"}),
 				MaxAge:           getEnvAsInt("CORS_MAX_AGE", 600),
@@ -111,6 +111,16 @@ func GetConfig() *structs.Config {
 			},
 		}
 
+		// Always allow the explicitly configured frontend origin. This prevents
+		// CORS_ALLOW_ORIGINS from becoming stale when APP_FRONTEND_URL changes.
+		if frontendOrigin := strings.TrimSpace(configInstance.Server.FrontendURL); frontendOrigin != "" &&
+			!containsString(configInstance.Cors.AllowedOrigins, frontendOrigin) {
+			configInstance.Cors.AllowedOrigins = append(
+				configInstance.Cors.AllowedOrigins,
+				frontendOrigin,
+			)
+		}
+
 		// Validate the configuration
 		if err := validate.Struct(configInstance); err != nil {
 			log.Fatalf("Configuration validation failed: %v", err)
@@ -122,6 +132,15 @@ func GetConfig() *structs.Config {
 		}
 	})
 	return configInstance
+}
+
+func containsString(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 // validateConfig performs additional custom validation checks
