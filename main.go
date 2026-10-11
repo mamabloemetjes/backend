@@ -76,7 +76,7 @@ func run() error {
 	adminRoutes := admin.NewAdminRoutesManager(logger, serviceManager.ProductService, serviceManager.OrderService, mw)
 	ordersRoutes := orders.NewOrderRoutesManager(serviceManager.ProductService, serviceManager.OrderService, serviceManager.EmailService, mw, logger)
 	debugRoutes := debug.NewDebugRoutesManager(serviceManager.CacheService)
-	fileRoutes := fs.NewFileRoutesManager(logger, serviceManager.FilesystemService, cfg)
+	fileRoutes := fs.NewFileRoutesManager(logger, serviceManager.FilesystemService, cfg, mw)
 
 	if err := serviceManager.FilesystemService.Init(); err != nil {
 		logger.Fatal("Failed to initialize file service", gecho.Field("error", err)) // or log.Fatalf
