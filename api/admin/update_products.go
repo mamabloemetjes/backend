@@ -1,13 +1,15 @@
 package admin
 
 import (
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/services"
-	"mamabloemetjes_server/structs/tables"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/services"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 type UpdateProductRequest struct {
@@ -36,7 +38,7 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 	body, err := lib.ExtractAndValidateBody[UpdateProductsRequest](r)
 	if err != nil || len(body.Products) == 0 {
 		ar.logger.Warn("Failed to extract and validate body", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("error.products.checkProductInformation"), gecho.Send())
+		response.Send(gecho.BadRequest(w, gecho.WithMessage("error.products.checkProductInformation")))
 		return
 	}
 
@@ -69,13 +71,11 @@ func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Requ
 	}
 
 	if len(totalErrors) > 0 {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.products.someFailedToUpdate"),
 			gecho.WithData(map[string]any{"errors": totalErrors}),
-			gecho.Send(),
-		)
+		))
 		return
 	}
-
-	gecho.Success(w, gecho.WithMessage("success.products.updated"), gecho.Send())
+	response.Send(gecho.Success(w, gecho.WithMessage("success.products.updated")))
 }

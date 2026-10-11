@@ -120,7 +120,7 @@ func mapValidationErrors(errs validator.ValidationErrors) *ValidationError {
 	return out
 }
 
-func SanitizeString(s string, removePunctuation bool, keepSpaces bool) string {
+func SanitizeString(s string, removePunctuation, keepSpaces bool) string {
 	s = strings.TrimSpace(s)
 	s = strings.ToLower(s)
 

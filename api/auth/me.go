@@ -1,10 +1,12 @@
 package auth
 
 import (
-	"mamabloemetjes_server/lib"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
 )
 
 func (ar *AuthRoutesManager) HandleMe(w http.ResponseWriter, r *http.Request) {
@@ -13,26 +15,24 @@ func (ar *AuthRoutesManager) HandleMe(w http.ResponseWriter, r *http.Request) {
 		// check if refresh token is present - signal to the frontend to refresh
 		refreshToken, refreshErr := lib.GetCookieValue(lib.RefreshCookieName, r)
 		if refreshErr != nil {
-			gecho.Success(w, gecho.WithMessage("error.auth.noAccessToken"), gecho.Send())
+			response.Send(gecho.Success(w, gecho.WithMessage("error.auth.noAccessToken")))
 			return
 		}
 		// refresh automatically
 		authResponse, err := ar.authService.RefreshAccessToken(refreshToken)
 		if err != nil {
 			ar.logger.Warn("Failed to refresh access token", gecho.Field("error", err))
-			gecho.Unauthorized(w, gecho.WithMessage("error.auth.sessionExpired"), gecho.Send())
+			response.Send(gecho.Unauthorized(w, gecho.WithMessage("error.auth.sessionExpired")))
 			return
 		}
 
 		// Set new tokens cookie
 		lib.SetCookie(lib.AccessCookieName, authResponse.AccessToken, ar.authService.GetAccessTokenExpiration(), w)
 		lib.SetCookie(lib.RefreshCookieName, authResponse.RefreshToken, ar.authService.GetRefreshTokenExpiration(), w)
-
 		// return user data
-		gecho.Success(w,
+		response.Send(gecho.Success(w,
 			gecho.WithData(authResponse.User),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -40,14 +40,12 @@ func (ar *AuthRoutesManager) HandleMe(w http.ResponseWriter, r *http.Request) {
 	claims, err := lib.ParseToken(accessToken, true, ar.cfg.Auth.AccessTokenSecret)
 	if err != nil {
 		ar.logger.Error("Failed to parse access token", gecho.Field("error", err))
-		gecho.Unauthorized(w, gecho.WithMessage("error.auth.invalidAccessToken"), gecho.Send())
+		response.Send(gecho.Unauthorized(w, gecho.WithMessage("error.auth.invalidAccessToken")))
 		return
 	}
 
 	user, err := ar.authService.GetUserByID(claims.Sub)
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithData(user),
-		gecho.Send(),
-	)
+	))
 }

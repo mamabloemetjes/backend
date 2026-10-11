@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/services"
-	"mamabloemetjes_server/structs"
-
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/database"
+	"github.com/mamabloemetjes/backend/services"
+	"github.com/mamabloemetjes/backend/structs"
 )
 
 type Middleware struct {

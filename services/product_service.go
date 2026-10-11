@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs/tables"
 	"time"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
+
+	"github.com/mamabloemetjes/backend/database"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 type ProductService struct {
@@ -157,7 +158,6 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, incl
 	})
 
 	product, err := query.First(ctx)
-
 	if err != nil {
 		ps.logger.Error("Failed to fetch product by ID",
 			gecho.Field("id", id),
@@ -693,7 +693,6 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID
 
 		return nil
 	})
-
 	if err != nil {
 		ps.logger.Error("Failed to delete product",
 			gecho.Field("error", err),

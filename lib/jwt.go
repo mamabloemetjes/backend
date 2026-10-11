@@ -2,13 +2,14 @@ package lib
 
 import (
 	"fmt"
-	"mamabloemetjes_server/config"
-	"mamabloemetjes_server/structs"
 	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/config"
+	"github.com/mamabloemetjes/backend/structs"
 )
 
 // ParseToken parses and validates a JWT token string and returns the claims

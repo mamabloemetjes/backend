@@ -1,11 +1,11 @@
 package fs
 
 import (
-	"mamabloemetjes_server/services"
-	"mamabloemetjes_server/structs"
-
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
+
+	"github.com/mamabloemetjes/backend/services"
+	"github.com/mamabloemetjes/backend/structs"
 )
 
 type FileRoutesManager struct {

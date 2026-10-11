@@ -1,13 +1,14 @@
 package middleware
 
 import (
-	"mamabloemetjes_server/api/health"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/mamabloemetjes/backend/api/health"
 )
 
 func MetricsMiddleware(next http.Handler) http.Handler {

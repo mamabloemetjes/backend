@@ -1,9 +1,9 @@
 package middleware
 
 import (
-	"mamabloemetjes_server/config"
-
 	"github.com/rs/cors"
+
+	"github.com/mamabloemetjes/backend/config"
 )
 
 func (mw *Middleware) SetupCORS() *cors.Cors {

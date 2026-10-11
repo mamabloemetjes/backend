@@ -1,13 +1,15 @@
 package api
 
 import (
-	"mamabloemetjes_server/api/middleware"
-	"mamabloemetjes_server/structs"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 	chiware "github.com/go-chi/chi/v5/middleware"
+
+	"github.com/mamabloemetjes/backend/api/middleware"
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/structs"
 )
 
 func App(
@@ -39,16 +41,13 @@ func App(
 	routerManager.RegisterRoutes(r)
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		gecho.Success(w,
+		response.Send(gecho.Success(w,
 			gecho.WithMessage("success.api.welcome"),
-			gecho.Send(),
-		)
+		))
 	})
 
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		gecho.NotFound(w,
-			gecho.Send(),
-		)
+		response.Send(gecho.NotFound(w))
 	})
 
 	return r

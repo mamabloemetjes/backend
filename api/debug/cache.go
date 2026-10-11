@@ -4,20 +4,19 @@ import (
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
 )
 
 func (drm *DebugRoutesManager) ClearCache(w http.ResponseWriter, r *http.Request) {
 	err := drm.cacheService.ClearAll()
 	if err != nil {
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.cache.clearFailed"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.cache.cleared"),
-		gecho.Send(),
-	)
+	))
 }

@@ -1,10 +1,10 @@
 package products
 
 import (
-	"mamabloemetjes_server/services"
-
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
+
+	"github.com/mamabloemetjes/backend/services"
 )
 
 type ProductRoutesManager struct {

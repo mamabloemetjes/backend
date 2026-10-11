@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
 )
 
 // getRateLimitForEndpoint determines which rate limit to apply based on config
 func (mw *Middleware) getRateLimitForEndpoint(path, method string) (int, time.Duration) {
-
 	// Order creation - very strict limit (1 per 30 minutes)
 	if strings.HasPrefix(path, "/orders/create") && method == http.MethodPost {
 		return 1, 30 * time.Minute
@@ -151,12 +152,10 @@ func (mw *Middleware) RateLimitMiddleware() func(http.Handler) http.Handler {
 				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(window).Unix()))
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(window.Seconds())))
 				w.Header().Set("Content-Type", "application/json")
-
-				gecho.TooManyRequests(w,
+				response.Send(gecho.TooManyRequests(w,
 					gecho.WithMessage("error.rateLimitExceeded"),
 					gecho.WithData(map[string]any{"limit": limit, "window": window.String(), "retry_after": int(window.Seconds())}),
-					gecho.Send(),
-				)
+				))
 				return
 			}
 
@@ -205,11 +204,9 @@ func (mw *Middleware) StrictRateLimitMiddleware(limit int, window time.Duration)
 					gecho.Field("ip", clientIP),
 					gecho.Field("endpoint", endpoint),
 				)
-
-				gecho.ServiceUnavailable(w,
+				response.Send(gecho.ServiceUnavailable(w,
 					gecho.WithMessage("error.serviceUnavailable"),
-					gecho.Send(),
-				)
+				))
 				return
 			}
 
@@ -225,8 +222,7 @@ func (mw *Middleware) StrictRateLimitMiddleware(limit int, window time.Duration)
 				w.Header().Set("X-RateLimit-Remaining", "0")
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(window.Seconds())))
 				w.Header().Set("Content-Type", "application/json")
-
-				gecho.TooManyRequests(w, gecho.WithMessage("error.rateLimitExceeded.strict"), gecho.Send())
+				response.Send(gecho.TooManyRequests(w, gecho.WithMessage("error.rateLimitExceeded.strict")))
 				return
 			}
 

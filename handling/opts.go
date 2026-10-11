@@ -2,11 +2,12 @@ package handling
 
 import (
 	"fmt"
-	"mamabloemetjes_server/services"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mamabloemetjes/backend/services"
 )
 
 // parseProductListOptions parses HTTP query parameters into ProductListOptions

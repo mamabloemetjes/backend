@@ -1,13 +1,15 @@
 package admin
 
 import (
-	"mamabloemetjes_server/structs/tables"
 	"net/http"
 	"strconv"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 // ListOrders returns a paginated list of orders with optional filtering
@@ -48,17 +50,15 @@ func (ar *AdminRoutesManager) ListOrders(w http.ResponseWriter, r *http.Request)
 			gecho.Field("error", err),
 			gecho.Field("page", page),
 			gecho.Field("page_size", pageSize))
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.fetchingOrders"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
 	// Calculate pagination metadata
 	totalPages := (total + pageSize - 1) / pageSize
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.ordersFetched"),
 		gecho.WithData(map[string]interface{}{
 			"orders": orders,
@@ -69,8 +69,7 @@ func (ar *AdminRoutesManager) ListOrders(w http.ResponseWriter, r *http.Request)
 				"total_pages": totalPages,
 			},
 		}),
-		gecho.Send(),
-	)
+	))
 }
 
 // GetOrderDetails returns detailed information about a specific order
@@ -79,10 +78,9 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 	orderIdStr := chi.URLParam(r, "id")
 	orderId, err := uuid.Parse(orderIdStr)
 	if err != nil {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -92,10 +90,9 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 		ar.logger.Error("Failed to get order",
 			gecho.Field("error", err),
 			gecho.Field("order_id", orderId))
-		gecho.NotFound(w,
+		response.Send(gecho.NotFound(w,
 			gecho.WithMessage("error.order.notFound"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -105,10 +102,9 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 		ar.logger.Error("Failed to get order lines",
 			gecho.Field("error", err),
 			gecho.Field("order_id", orderId))
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.fetchingOrderLines"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -118,10 +114,9 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 		ar.logger.Error("Failed to get address",
 			gecho.Field("error", err),
 			gecho.Field("address_id", order.AddressId))
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.fetchingAddress"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -130,8 +125,7 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 	for _, line := range orderLines {
 		total += line.LineTotal
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.orderDetailsFetched"),
 		gecho.WithData(map[string]interface{}{
 			"order":       order,
@@ -139,6 +133,5 @@ func (ar *AdminRoutesManager) GetOrderDetails(w http.ResponseWriter, r *http.Req
 			"address":     address,
 			"total":       total,
 		}),
-		gecho.Send(),
-	)
+	))
 }

@@ -5,9 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"mamabloemetjes_server/config"
-	"mamabloemetjes_server/structs"
-	"mamabloemetjes_server/structs/tables"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +13,10 @@ import (
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/mamabloemetjes/backend/config"
+	"github.com/mamabloemetjes/backend/structs"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 var (
@@ -228,7 +229,6 @@ func (cs *CacheService) Get(key string) (string, error) {
 		resultErr = nil
 		return nil
 	}, 3)
-
 	if err != nil {
 		observeCacheOperation("get", err, started)
 		return "", err

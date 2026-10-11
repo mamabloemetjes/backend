@@ -1,9 +1,10 @@
 package config
 
 import (
-	"mamabloemetjes_server/structs"
 	"testing"
 	"time"
+
+	"github.com/mamabloemetjes/backend/structs"
 )
 
 func validTestConfig() *structs.Config {

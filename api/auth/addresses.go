@@ -1,10 +1,12 @@
 package auth
 
 import (
-	"mamabloemetjes_server/lib"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
 )
 
 func (ar *AuthRoutesManager) HandleGetAddresses(w http.ResponseWriter, r *http.Request) {
@@ -12,7 +14,7 @@ func (ar *AuthRoutesManager) HandleGetAddresses(w http.ResponseWriter, r *http.R
 	claims, err := lib.ExtractClaims(r)
 	if err != nil {
 		ar.logger.Error("Failed to extract claims", gecho.Field("error", err))
-		gecho.Unauthorized(w, gecho.WithMessage("error.auth.unauthorized"), gecho.Send())
+		response.Send(gecho.Unauthorized(w, gecho.WithMessage("error.auth.unauthorized")))
 		return
 	}
 
@@ -23,7 +25,7 @@ func (ar *AuthRoutesManager) HandleGetAddresses(w http.ResponseWriter, r *http.R
 			gecho.Field("error", err),
 			gecho.Field("user_id", claims.Sub),
 		)
-		gecho.InternalServerError(w, gecho.WithMessage("error.addresses.fetchFailed"), gecho.Send())
+		response.Send(gecho.InternalServerError(w, gecho.WithMessage("error.addresses.fetchFailed")))
 		return
 	}
 
@@ -34,17 +36,15 @@ func (ar *AuthRoutesManager) HandleGetAddresses(w http.ResponseWriter, r *http.R
 			gecho.Field("error", err),
 			gecho.Field("user_id", claims.Sub),
 		)
-		gecho.InternalServerError(w, gecho.WithMessage("error.user.fetchFailed"), gecho.Send())
+		response.Send(gecho.InternalServerError(w, gecho.WithMessage("error.user.fetchFailed")))
 		return
 	}
-
 	// Return user info and addresses
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithData(map[string]interface{}{
 			"user":      user,
 			"addresses": addresses,
 		}),
 		gecho.WithMessage("success.addresses.fetched"),
-		gecho.Send(),
-	)
+	))
 }

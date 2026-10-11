@@ -3,16 +3,17 @@ package services
 import (
 	"context"
 	"fmt"
-	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs"
-	"mamabloemetjes_server/structs/tables"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/resend/resend-go/v3"
+
+	"github.com/mamabloemetjes/backend/database"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/structs"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 var (
@@ -45,7 +46,7 @@ func getEmailClient(apiKey string) *resend.Client {
 	return client
 }
 
-func (es *EmailService) SendEmail(to []string, subject string, body string) error {
+func (es *EmailService) SendEmail(to []string, subject, body string) error {
 	params := &resend.SendEmailRequest{
 		From:    es.cfg.Email.From,
 		To:      to,

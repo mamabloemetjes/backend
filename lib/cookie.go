@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"mamabloemetjes_server/config"
+	"github.com/mamabloemetjes/backend/config"
 )
 
 var (

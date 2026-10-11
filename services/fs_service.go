@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"mamabloemetjes_server/structs"
-	"mamabloemetjes_server/structs/tables"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -22,6 +20,9 @@ import (
 
 	"github.com/MonkyMars/gecho"
 	"github.com/disintegration/imaging"
+
+	"github.com/mamabloemetjes/backend/structs"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 type FileService struct {

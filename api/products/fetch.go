@@ -2,14 +2,16 @@ package products
 
 import (
 	"errors"
-	"mamabloemetjes_server/handling"
-	"mamabloemetjes_server/lib"
 	"net/http"
 	"strconv"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/handling"
+	"github.com/mamabloemetjes/backend/lib"
 )
 
 // FetchAllProducts handles GET /products with comprehensive filtering, pagination, and sorting
@@ -20,10 +22,9 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 	opts, err := handling.ParseProductListOptions(r)
 	if err != nil {
 		p.logger.Warn("Invalid query parameters", "error", err)
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.invalidQueryParameters"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -38,19 +39,17 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 	result, err := p.productService.GetAllProducts(ctx, opts)
 	if err != nil {
 		p.logger.Error("Failed to fetch products", "error", err)
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.products.failedToFetch"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
 	if opts.IncludeImages {
 		p.fileService.HydrateProducts(result.Products)
 	}
-
 	// Return successful response with metadata
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithData(map[string]any{
 			"products":   result.Products,
 			"pagination": result.Pagination,
@@ -60,8 +59,7 @@ func (p *ProductRoutesManager) FetchAllProducts(w http.ResponseWriter, r *http.R
 				"count":         len(result.Products),
 			},
 		}),
-		gecho.Send(),
-	)
+	))
 }
 
 // FetchProductByID handles GET /products/{id} to fetch a single product
@@ -75,20 +73,18 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		p.logger.Warn("Invalid product ID format", "id", idStr, "error", err)
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.products.invalidProductId"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
 	// Check if ID is empty (zero UUID)
 	if id == uuid.Nil {
 		p.logger.Warn("Product ID not provided")
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.products.productIdRequired"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -99,32 +95,28 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 	product, err := p.productService.GetProductByID(ctx, id, includeImages)
 	if err != nil {
 		if errors.Is(err, lib.ErrNotFound) {
-			gecho.NotFound(w,
+			response.Send(gecho.NotFound(w,
 				gecho.WithMessage("error.products.notFound"),
-				gecho.Send(),
-			)
+			))
 			return
 		}
 
 		p.logger.Error("Failed to fetch product by ID", "id", id, "error", err)
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.products.failedToFetchOne"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
 	if includeImages {
 		p.fileService.HydrateProduct(product)
 	}
-
 	// Return successful response
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithData(map[string]any{
 			"product": product,
 		}),
-		gecho.Send(),
-	)
+	))
 }
 
 // FetchActiveProducts handles GET /products/active to fetch only active products
@@ -157,19 +149,17 @@ func (p *ProductRoutesManager) FetchActiveProducts(w http.ResponseWriter, r *htt
 	result, err := p.productService.GetActiveProducts(ctx, page, pageSize, includeImages, productType)
 	if err != nil {
 		p.logger.Error("Failed to fetch active products", "error", err)
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.products.failedToFetchActive"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
 	if includeImages {
 		p.fileService.HydrateProducts(result.Products)
 	}
-
 	// Return successful response with metadata
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithData(map[string]any{
 			"products":   result.Products,
 			"pagination": result.Pagination,
@@ -179,8 +169,7 @@ func (p *ProductRoutesManager) FetchActiveProducts(w http.ResponseWriter, r *htt
 				"count":         len(result.Products),
 			},
 		}),
-		gecho.Send(),
-	)
+	))
 }
 
 // GetProductCount handles GET /products/count to get total count of products
@@ -191,10 +180,9 @@ func (p *ProductRoutesManager) GetProductCount(w http.ResponseWriter, r *http.Re
 	opts, err := handling.ParseProductListOptions(r)
 	if err != nil {
 		p.logger.Warn("Invalid query parameters", "error", err)
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.invalidQueryParameters"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -202,19 +190,16 @@ func (p *ProductRoutesManager) GetProductCount(w http.ResponseWriter, r *http.Re
 	count, err := p.productService.GetProductCount(ctx, opts)
 	if err != nil {
 		p.logger.Error("Failed to count products", "error", err)
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.products.failedToCount"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
-
 	// Return successful response
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithData(map[string]any{
 			"count":   count,
 			"filters": opts,
 		}),
-		gecho.Send(),
-	)
+	))
 }

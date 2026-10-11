@@ -1,12 +1,14 @@
 package orders
 
 import (
-	"mamabloemetjes_server/lib"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
 )
 
 // GetMyOrders returns all orders for the authenticated user
@@ -14,10 +16,9 @@ func (orm *OrderRoutesManager) GetMyOrders(w http.ResponseWriter, r *http.Reques
 	claims, err := lib.ExtractClaims(r)
 	if err != nil {
 		orm.logger.Warn("Failed to extract claims in GetMyOrders", gecho.Field("error", err))
-		gecho.Unauthorized(w,
+		response.Send(gecho.Unauthorized(w,
 			gecho.WithMessage("error.auth.invalidOrMissingAccessToken"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -26,21 +27,18 @@ func (orm *OrderRoutesManager) GetMyOrders(w http.ResponseWriter, r *http.Reques
 	// Get orders for user
 	orders, err := orm.orderService.GetOrdersByUserId(r.Context(), claims.Sub)
 	if err != nil {
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.fetchingOrders"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.ordersFetched"),
 		gecho.WithData(map[string]any{
 			"orders": orders,
 			"count":  len(orders),
 		}),
-		gecho.Send(),
-	)
+	))
 }
 
 // GetMyOrderById returns detailed information about a specific order for the authenticated user
@@ -48,10 +46,9 @@ func (orm *OrderRoutesManager) GetMyOrderById(w http.ResponseWriter, r *http.Req
 	claims, err := lib.ExtractClaims(r)
 	if err != nil {
 		orm.logger.Warn("Failed to extract claims in GetMyOrderById", gecho.Field("error", err))
-		gecho.Unauthorized(w,
+		response.Send(gecho.Unauthorized(w,
 			gecho.WithMessage("error.auth.invalidOrMissingAccessToken"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -60,10 +57,9 @@ func (orm *OrderRoutesManager) GetMyOrderById(w http.ResponseWriter, r *http.Req
 	orderId, err := uuid.Parse(orderIdStr)
 	if err != nil {
 		orm.logger.Warn("Invalid order ID format", gecho.Field("order_id", orderIdStr))
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -73,10 +69,9 @@ func (orm *OrderRoutesManager) GetMyOrderById(w http.ResponseWriter, r *http.Req
 	order, err := orm.orderService.GetOrderById(r.Context(), orderId)
 	if err != nil {
 		orm.logger.Error("Failed to get order", gecho.Field("error", err), gecho.Field("order_id", orderId))
-		gecho.NotFound(w,
+		response.Send(gecho.NotFound(w,
 			gecho.WithMessage("error.order.notFound"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -86,10 +81,9 @@ func (orm *OrderRoutesManager) GetMyOrderById(w http.ResponseWriter, r *http.Req
 		orm.logger.Error("Failed to get address",
 			gecho.Field("error", err),
 			gecho.Field("address_id", order.AddressId))
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.fetchingAddress"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -100,10 +94,9 @@ func (orm *OrderRoutesManager) GetMyOrderById(w http.ResponseWriter, r *http.Req
 			gecho.Field("order_id", orderId),
 			gecho.Field("address_user_id", address.UserId),
 		)
-		gecho.Forbidden(w,
+		response.Send(gecho.Forbidden(w,
 			gecho.WithMessage("error.auth.accessDenied"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -113,10 +106,9 @@ func (orm *OrderRoutesManager) GetMyOrderById(w http.ResponseWriter, r *http.Req
 		orm.logger.Error("Failed to get order lines",
 			gecho.Field("error", err),
 			gecho.Field("order_id", orderId))
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.fetchingOrderLines"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -125,8 +117,7 @@ func (orm *OrderRoutesManager) GetMyOrderById(w http.ResponseWriter, r *http.Req
 	for _, line := range orderLines {
 		total += line.LineTotal
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.orderDetailsFetched"),
 		gecho.WithData(map[string]interface{}{
 			"order":       order,
@@ -134,6 +125,5 @@ func (orm *OrderRoutesManager) GetMyOrderById(w http.ResponseWriter, r *http.Req
 			"address":     address,
 			"total":       total,
 		}),
-		gecho.Send(),
-	)
+	))
 }

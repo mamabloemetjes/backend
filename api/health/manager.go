@@ -2,14 +2,15 @@ package health
 
 import (
 	"crypto/subtle"
-	"mamabloemetjes_server/config"
-	"mamabloemetjes_server/services"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/mamabloemetjes/backend/config"
+	"github.com/mamabloemetjes/backend/services"
 )
 
 type HealthRoutesManager struct {

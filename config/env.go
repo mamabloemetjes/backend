@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func getEnvAsString(key string, defaultVal string) string {
+func getEnvAsString(key, defaultVal string) string {
 	if value, exists := lookupEnv(key); exists {
 		return value
 	}

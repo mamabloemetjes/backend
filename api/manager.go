@@ -1,15 +1,15 @@
 package api
 
 import (
-	"mamabloemetjes_server/api/admin"
-	"mamabloemetjes_server/api/auth"
-	"mamabloemetjes_server/api/debug"
-	"mamabloemetjes_server/api/fs"
-	"mamabloemetjes_server/api/health"
-	"mamabloemetjes_server/api/orders"
-	"mamabloemetjes_server/api/products"
-
 	"github.com/go-chi/chi/v5"
+
+	"github.com/mamabloemetjes/backend/api/admin"
+	"github.com/mamabloemetjes/backend/api/auth"
+	"github.com/mamabloemetjes/backend/api/debug"
+	"github.com/mamabloemetjes/backend/api/fs"
+	"github.com/mamabloemetjes/backend/api/health"
+	"github.com/mamabloemetjes/backend/api/orders"
+	"github.com/mamabloemetjes/backend/api/products"
 )
 
 type routerManager struct {

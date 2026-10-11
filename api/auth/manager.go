@@ -1,12 +1,12 @@
 package auth
 
 import (
-	"mamabloemetjes_server/api/middleware"
-	"mamabloemetjes_server/services"
-	"mamabloemetjes_server/structs"
-
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
+
+	"github.com/mamabloemetjes/backend/api/middleware"
+	"github.com/mamabloemetjes/backend/services"
+	"github.com/mamabloemetjes/backend/structs"
 )
 
 type AuthRoutesManager struct {

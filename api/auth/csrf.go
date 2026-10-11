@@ -2,9 +2,10 @@ package auth
 
 import (
 	"encoding/json"
-	"mamabloemetjes_server/lib"
 	"net/http"
 	"time"
+
+	"github.com/mamabloemetjes/backend/lib"
 )
 
 // HandleCSRF generates and sets a CSRF token

@@ -4,18 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"mamabloemetjes_server/api"
-	"mamabloemetjes_server/api/admin"
-	"mamabloemetjes_server/api/auth"
-	"mamabloemetjes_server/api/debug"
-	"mamabloemetjes_server/api/fs"
-	"mamabloemetjes_server/api/health"
-	"mamabloemetjes_server/api/middleware"
-	"mamabloemetjes_server/api/orders"
-	"mamabloemetjes_server/api/products"
-	"mamabloemetjes_server/config"
-	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/services"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,6 +13,19 @@ import (
 
 	"github.com/MonkyMars/gecho"
 	"github.com/joho/godotenv"
+
+	"github.com/mamabloemetjes/backend/api"
+	"github.com/mamabloemetjes/backend/api/admin"
+	"github.com/mamabloemetjes/backend/api/auth"
+	"github.com/mamabloemetjes/backend/api/debug"
+	"github.com/mamabloemetjes/backend/api/fs"
+	"github.com/mamabloemetjes/backend/api/health"
+	"github.com/mamabloemetjes/backend/api/middleware"
+	"github.com/mamabloemetjes/backend/api/orders"
+	"github.com/mamabloemetjes/backend/api/products"
+	"github.com/mamabloemetjes/backend/config"
+	"github.com/mamabloemetjes/backend/database"
+	"github.com/mamabloemetjes/backend/services"
 )
 
 func main() {
