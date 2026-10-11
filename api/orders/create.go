@@ -2,6 +2,7 @@ package orders
 
 import (
 	"errors"
+	"mamabloemetjes_server/api/response"
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs"
 	"net/http"
@@ -14,10 +15,9 @@ import (
 func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	body, err := lib.ExtractAndValidateBody[structs.OrderRequest](r)
 	if err != nil {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidRequestBody"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -35,10 +35,9 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 	// Create order using service (handles validation, pricing snapshots, email sending)
 	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if len(idempotencyKey) > 128 {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidIdempotencyKey"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -47,17 +46,14 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 		orm.logger.Error("Failed to create order", gecho.Field("error", err))
 		// Check for specific business logic errors
 		if errors.Is(err, lib.ErrProductUnavailable) {
-			gecho.BadRequest(w,
+			response.Send(gecho.BadRequest(w,
 				gecho.WithMessage("error.order.productUnavailable"),
-				gecho.Send(),
-			)
+			))
 			return
 		}
-
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.creationFailed"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -77,14 +73,12 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 			}
 		}()
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.created"),
 		gecho.WithData(map[string]any{
 			"order_number": order.Order.OrderNumber,
 			"order_id":     order.Order.Id,
 			"status":       order.Order.Status,
 		}),
-		gecho.Send(),
-	)
+	))
 }

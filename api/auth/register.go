@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"mamabloemetjes_server/api/response"
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs"
 	"net/http"
@@ -12,7 +13,7 @@ func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Reque
 	body, err := lib.ExtractAndValidateBody[structs.RegisterRequest](r)
 	if err != nil {
 		ar.logger.Warn("Failed to extract and validate request body", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("error.auth.checkRegistrationInformation"), gecho.WithData(err), gecho.Send())
+		response.Send(gecho.BadRequest(w, gecho.WithMessage("error.auth.checkRegistrationInformation")))
 		return
 	}
 
@@ -23,12 +24,11 @@ func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Reque
 
 		// Unique violations return 409 Conflict (already logged as warn in service)
 		if lib.IsUniqueViolation(err) {
-			gecho.Conflict(w, gecho.WithMessage(userMessage), gecho.Send())
+			response.Send(gecho.Conflict(w, gecho.WithMessage(userMessage)))
 			return
 		}
-
 		// Other database errors return 500 (already logged as error in service)
-		gecho.InternalServerError(w, gecho.WithMessage(userMessage), gecho.Send())
+		response.Send(gecho.InternalServerError(w, gecho.WithMessage(userMessage)))
 		return
 	}
 
@@ -44,9 +44,7 @@ func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Reque
 		}
 		ar.logger.Debug("Verification email sent", gecho.Field("email_verification_id", result.Id), gecho.Field("user_id", user.Id))
 	}()
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.auth.userRegistered"),
-		gecho.Send(),
-	)
+	))
 }

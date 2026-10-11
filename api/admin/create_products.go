@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"mamabloemetjes_server/api/response"
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs/tables"
 	"net/http"
@@ -12,7 +13,7 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 	body, err := lib.ExtractAndValidateBody[tables.Product](r)
 	if err != nil {
 		ar.logger.Warn("Failed to extract and validate body", err)
-		gecho.BadRequest(w, gecho.WithMessage("error.products.checkProductInformation"), gecho.Send())
+		response.Send(gecho.BadRequest(w, gecho.WithMessage("error.products.checkProductInformation")))
 		return
 	}
 
@@ -20,11 +21,10 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 	ar.logger.Debug("Generated SKU", gecho.Field("sku", body.SKU))
 	if err != nil {
 		ar.logger.Error("Failed to generate SKU", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("error.products.unableToCreate"), gecho.Send())
+		response.Send(gecho.InternalServerError(w, gecho.WithMessage("error.products.unableToCreate")))
 		return
 	}
 
-	// Debug log to check if images are received
 	ar.logger.Debug("CreateProduct request received",
 		gecho.Field("product_name", body.Name),
 		gecho.Field("images_count", len(body.Images)),
@@ -43,13 +43,12 @@ func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Reque
 	newProduct, err := ar.productService.CreateProduct(r.Context(), body)
 	if err != nil {
 		ar.logger.Error("Failed to create product", gecho.Field("error", err))
-		gecho.InternalServerError(w, gecho.WithMessage("error.products.unableToCreate"), gecho.Send())
+		response.Send(gecho.InternalServerError(w, gecho.WithMessage("error.products.unableToCreate")))
 		return
 	}
 
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithData(newProduct),
 		gecho.WithMessage("success.products.created"),
-		gecho.Send(),
-	)
+	))
 }

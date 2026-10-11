@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"mamabloemetjes_server/api/response"
 	"mamabloemetjes_server/lib"
 	"net/http"
 
@@ -14,13 +15,13 @@ func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Reque
 	productIDStr := chi.URLParam(r, "id")
 	if productIDStr == "" {
 		ar.logger.Warn("Product ID is missing in the request")
-		gecho.BadRequest(w, gecho.WithMessage("error.products.missingProductID"), gecho.Send())
+		response.Send(gecho.BadRequest(w, gecho.WithMessage("error.products.missingProductID")))
 		return
 	}
 
 	productID, err := uuid.Parse(productIDStr)
 	if err != nil {
-		gecho.BadRequest(w, gecho.WithMessage("error.products.invalidProductID"), gecho.Send())
+		response.Send(gecho.BadRequest(w, gecho.WithMessage("error.products.invalidProductID")))
 		return
 	}
 
@@ -28,15 +29,13 @@ func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		ar.logger.Error("Failed to delete product", gecho.Field("error", err))
 		if lib.IsNotFound(err) {
-			gecho.NotFound(w, gecho.WithMessage("error.products.notFound"), gecho.Send())
+			response.Send(gecho.NotFound(w, gecho.WithMessage("error.products.notFound")))
 			return
 		}
-		gecho.InternalServerError(w, gecho.WithMessage("error.products.unableToDelete"), gecho.Send())
+		response.Send(gecho.InternalServerError(w, gecho.WithMessage("error.products.unableToDelete")))
 		return
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.products.deleted"),
-		gecho.Send(),
-	)
+	))
 }

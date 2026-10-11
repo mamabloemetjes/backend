@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"mamabloemetjes_server/api/response"
 	"net"
 	"net/http"
 	"strings"
@@ -151,12 +152,10 @@ func (mw *Middleware) RateLimitMiddleware() func(http.Handler) http.Handler {
 				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(window).Unix()))
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(window.Seconds())))
 				w.Header().Set("Content-Type", "application/json")
-
-				gecho.TooManyRequests(w,
+				response.Send(gecho.TooManyRequests(w,
 					gecho.WithMessage("error.rateLimitExceeded"),
 					gecho.WithData(map[string]any{"limit": limit, "window": window.String(), "retry_after": int(window.Seconds())}),
-					gecho.Send(),
-				)
+				))
 				return
 			}
 
@@ -205,11 +204,9 @@ func (mw *Middleware) StrictRateLimitMiddleware(limit int, window time.Duration)
 					gecho.Field("ip", clientIP),
 					gecho.Field("endpoint", endpoint),
 				)
-
-				gecho.ServiceUnavailable(w,
+				response.Send(gecho.ServiceUnavailable(w,
 					gecho.WithMessage("error.serviceUnavailable"),
-					gecho.Send(),
-				)
+				))
 				return
 			}
 
@@ -225,8 +222,7 @@ func (mw *Middleware) StrictRateLimitMiddleware(limit int, window time.Duration)
 				w.Header().Set("X-RateLimit-Remaining", "0")
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(window.Seconds())))
 				w.Header().Set("Content-Type", "application/json")
-
-				gecho.TooManyRequests(w, gecho.WithMessage("error.rateLimitExceeded.strict"), gecho.Send())
+				response.Send(gecho.TooManyRequests(w, gecho.WithMessage("error.rateLimitExceeded.strict")))
 				return
 			}
 

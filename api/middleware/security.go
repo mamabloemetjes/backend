@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"crypto/subtle"
+	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
@@ -47,7 +48,7 @@ func (mw *Middleware) CSRFMiddleware() func(http.Handler) http.Handler {
 			cookie, err := r.Cookie("csrf")
 			if err != nil {
 				mw.logger.Warn("CSRF cookie missing", gecho.Field("path", r.URL.Path), gecho.Field("cookies", cookieNames))
-				gecho.Forbidden(w, gecho.WithMessage("invalid csrf token"), gecho.Send())
+				response.Send(gecho.Forbidden(w, gecho.WithMessage("invalid csrf token")))
 				return
 			}
 

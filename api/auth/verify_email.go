@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
@@ -16,7 +17,7 @@ func (ar *AuthRoutesManager) HandleVerifyEmail(w http.ResponseWriter, r *http.Re
 	userID := params.Get("user_id")
 
 	if token == "" || userID == "" {
-		gecho.BadRequest(w, gecho.WithMessage("error.auth.missingTokenOrUserId"), gecho.Send())
+		response.Send(gecho.BadRequest(w, gecho.WithMessage("error.auth.missingTokenOrUserId")))
 		return
 	}
 
@@ -24,7 +25,7 @@ func (ar *AuthRoutesManager) HandleVerifyEmail(w http.ResponseWriter, r *http.Re
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		ar.logger.Warn("Invalid user_id format", gecho.Field("error", err), gecho.Field("user_id", userID))
-		gecho.BadRequest(w, gecho.WithMessage("error.auth.invalidUserIdFormat"), gecho.Send())
+		response.Send(gecho.BadRequest(w, gecho.WithMessage("error.auth.invalidUserIdFormat")))
 		return
 	}
 

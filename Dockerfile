@@ -7,7 +7,8 @@ RUN apk add --no-cache git libwebp-tools
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go install github.com/air-verse/air@latest
+    go install github.com/air-verse/air@latest \
+    && go install github.com/go-delve/delve/cmd/dlv@latest
 
 WORKDIR /app
 

@@ -4,3 +4,5 @@
 
 bin/
 tmp/
+uploads/
+*debug_bin*

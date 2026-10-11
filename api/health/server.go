@@ -1,6 +1,7 @@
 package health
 
 import (
+	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
@@ -8,23 +9,20 @@ import (
 
 func (hrm *HealthRoutesManager) GetServerHealth(w http.ResponseWriter, r *http.Request) {
 	healthStatus := hrm.healthService.GetServerHealthStatus()
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithData(healthStatus),
-		gecho.Send(),
-	)
+	))
 }
 
 func (hrm *HealthRoutesManager) GetDatabaseHealth(w http.ResponseWriter, r *http.Request) {
 	dbHealthStatus, err := hrm.healthService.GetDatabaseHealthStatus()
 	if err != nil {
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.database.healthCheckFailed"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithData(dbHealthStatus),
-		gecho.Send(),
-	)
+	))
 }

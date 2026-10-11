@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"mamabloemetjes_server/api/response"
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs"
 	"mamabloemetjes_server/structs/tables"
@@ -24,7 +25,7 @@ func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 		claims, err := lib.ExtractClaims(r)
 		if err != nil {
 			mw.logger.Warn("Failed to extract claims from request", gecho.Field("error", err))
-			gecho.Unauthorized(w, gecho.WithMessage("error.auth.invalidOrMissingAccessToken"), gecho.Send())
+			response.Send(gecho.Unauthorized(w, gecho.WithMessage("error.auth.invalidOrMissingAccessToken")))
 			return
 		}
 
@@ -32,7 +33,7 @@ func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 		isRevoked, err := mw.cacheService.IsTokenBlacklisted(claims.Jti)
 		if err != nil {
 			mw.logger.Error("Failed to check if token is revoked", gecho.Field("error", err))
-			gecho.InternalServerError(w, gecho.WithMessage("error.internalServerError"), gecho.Send())
+			response.Send(gecho.InternalServerError(w, gecho.WithMessage("error.internalServerError")))
 			return
 		}
 		if isRevoked {
@@ -44,8 +45,7 @@ func (mw *Middleware) UserAuthMiddleware(next http.Handler) http.Handler {
 			} else {
 				mw.logger.Debug("User cache revoked for revoked token", gecho.Field("user_id", claims.Sub))
 			}
-
-			gecho.Unauthorized(w, gecho.WithMessage("error.auth.accessTokenRevoked"), gecho.Send())
+			response.Send(gecho.Unauthorized(w, gecho.WithMessage("error.auth.accessTokenRevoked")))
 			return
 		}
 
@@ -65,14 +65,14 @@ func (mw *Middleware) AdminAuthMiddleware(next http.Handler) http.Handler {
 		claims, ok := GetClaimsFromContext(r.Context())
 		if !ok {
 			mw.logger.Error("Claims not found in context - UserAuthMiddleware must be used before AdminAuthMiddleware")
-			gecho.Unauthorized(w, gecho.WithMessage("error.auth.invalidOrMissingAccessToken"), gecho.Send())
+			response.Send(gecho.Unauthorized(w, gecho.WithMessage("error.auth.invalidOrMissingAccessToken")))
 			return
 		}
 
 		// Check if user has admin role
 		if claims.Role != "admin" {
 			mw.logger.Warn("Non-admin user attempted to access admin route", gecho.Field("user_id", claims.Sub), gecho.Field("role", claims.Role))
-			gecho.Forbidden(w, gecho.WithMessage("error.auth.adminAccessRequired"), gecho.Send())
+			response.Send(gecho.Forbidden(w, gecho.WithMessage("error.auth.adminAccessRequired")))
 			return
 		}
 

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"mamabloemetjes_server/api/response"
 	"mamabloemetjes_server/lib"
 	"mamabloemetjes_server/structs/tables"
 	"net/http"
@@ -24,21 +25,22 @@ func (ar *AdminRoutesManager) AttachPaymentLink(w http.ResponseWriter, r *http.R
 	orderIdStr := chi.URLParam(r, "id")
 	orderId, err := uuid.Parse(orderIdStr)
 	if err != nil {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
 	// Extract and validate request body
 	body, err := lib.ExtractAndValidateBody[AttachPaymentLinkRequest](r)
 	if err != nil {
-		gecho.BadRequest(w,
-			gecho.WithMessage("error.order.invalidRequestBody"),
-			gecho.WithData(err),
-			gecho.Send(),
+		ar.logger.Warn("Failed to extract and validate payment link request",
+			gecho.Field("error", err),
+			gecho.Field("order_id", orderId),
 		)
+		response.Send(gecho.BadRequest(w,
+			gecho.WithMessage("error.order.invalidRequestBody"),
+		))
 		return
 	}
 
@@ -48,17 +50,14 @@ func (ar *AdminRoutesManager) AttachPaymentLink(w http.ResponseWriter, r *http.R
 		ar.logger.Error("Failed to attach payment link",
 			gecho.Field("error", err),
 			gecho.Field("order_id", orderId))
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.attachingPaymentLink"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.paymentLinkAttached"),
-		gecho.Send(),
-	)
+	))
 }
 
 // MarkOrderAsPaid marks an order as paid
@@ -67,10 +66,9 @@ func (ar *AdminRoutesManager) MarkOrderAsPaid(w http.ResponseWriter, r *http.Req
 	orderIdStr := chi.URLParam(r, "id")
 	orderId, err := uuid.Parse(orderIdStr)
 	if err != nil {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -80,17 +78,14 @@ func (ar *AdminRoutesManager) MarkOrderAsPaid(w http.ResponseWriter, r *http.Req
 		ar.logger.Error("Failed to mark order as paid",
 			gecho.Field("error", err),
 			gecho.Field("order_id", orderId))
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.markingAsPaid"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.markedAsPaid"),
-		gecho.Send(),
-	)
+	))
 }
 
 // UpdateOrderStatus updates the status of an order
@@ -99,29 +94,29 @@ func (ar *AdminRoutesManager) UpdateOrderStatus(w http.ResponseWriter, r *http.R
 	orderIdStr := chi.URLParam(r, "id")
 	orderId, err := uuid.Parse(orderIdStr)
 	if err != nil {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
 	// Parse status from form
 	body, err := lib.ExtractAndValidateBody[UpdateOrderStatusRequest](r)
 	if err != nil {
-		gecho.BadRequest(w,
-			gecho.WithMessage("error.order.invalidRequestBody"),
-			gecho.WithData(err),
-			gecho.Send(),
+		ar.logger.Warn("Failed to extract and validate order status request",
+			gecho.Field("error", err),
+			gecho.Field("order_id", orderId),
 		)
+		response.Send(gecho.BadRequest(w,
+			gecho.WithMessage("error.order.invalidRequestBody"),
+		))
 		return
 	}
 
 	if body.Status == "" {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("Body incomplete"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -135,24 +130,19 @@ func (ar *AdminRoutesManager) UpdateOrderStatus(w http.ResponseWriter, r *http.R
 
 		// Check if it's a validation error
 		if err.Error() == "invalid status transition" {
-			gecho.BadRequest(w,
+			response.Send(gecho.BadRequest(w,
 				gecho.WithMessage("error.order.invalidStatusTransition"),
-				gecho.Send(),
-			)
+			))
 			return
 		}
-
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.updatingStatus"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.statusUpdated"),
-		gecho.Send(),
-	)
+	))
 }
 
 // DeleteOrder soft deletes an order
@@ -161,10 +151,9 @@ func (ar *AdminRoutesManager) DeleteOrder(w http.ResponseWriter, r *http.Request
 	orderIdStr := chi.URLParam(r, "id")
 	orderId, err := uuid.Parse(orderIdStr)
 	if err != nil {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.order.invalidOrderId"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -174,15 +163,12 @@ func (ar *AdminRoutesManager) DeleteOrder(w http.ResponseWriter, r *http.Request
 		ar.logger.Error("Failed to delete order",
 			gecho.Field("error", err),
 			gecho.Field("order_id", orderId))
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.order.deletingOrder"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.deleted"),
-		gecho.Send(),
-	)
+	))
 }

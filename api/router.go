@@ -2,6 +2,7 @@ package api
 
 import (
 	"mamabloemetjes_server/api/middleware"
+	"mamabloemetjes_server/api/response"
 	"mamabloemetjes_server/structs"
 	"net/http"
 
@@ -39,16 +40,13 @@ func App(
 	routerManager.RegisterRoutes(r)
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		gecho.Success(w,
+		response.Send(gecho.Success(w,
 			gecho.WithMessage("success.api.welcome"),
-			gecho.Send(),
-		)
+		))
 	})
 
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		gecho.NotFound(w,
-			gecho.Send(),
-		)
+		response.Send(gecho.NotFound(w))
 	})
 
 	return r

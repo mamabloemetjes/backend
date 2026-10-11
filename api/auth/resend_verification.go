@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"mamabloemetjes_server/api/response"
 	"net/http"
 	"time"
 
@@ -21,7 +22,7 @@ func (ar *AuthRoutesManager) HandleResendVerification(w http.ResponseWriter, r *
 	body, err := lib.ExtractAndValidateBody[ResendVerificationRequest](r)
 	if err != nil {
 		ar.logger.Warn("Failed to extract and validate request body", gecho.Field("error", err))
-		gecho.BadRequest(w, gecho.WithMessage("error.invalidRequest"), gecho.WithData(err), gecho.Send())
+		response.Send(gecho.BadRequest(w, gecho.WithMessage("error.invalidRequest")))
 		return
 	}
 
@@ -32,21 +33,21 @@ func (ar *AuthRoutesManager) HandleResendVerification(w http.ResponseWriter, r *
 	if err != nil {
 		ar.logger.Error("Failed to find user", gecho.Field("error", err), gecho.Field("email", body.Email))
 		// Don't reveal if user exists or not for security reasons
-		gecho.Success(w, gecho.WithMessage("success.auth.verificationEmailSent"), gecho.Send())
+		response.Send(gecho.Success(w, gecho.WithMessage("success.auth.verificationEmailSent")))
 		return
 	}
 
 	// If user not found, still return success to prevent email enumeration
 	if user == nil {
 		ar.logger.Warn("User not found", gecho.Field("email", body.Email))
-		gecho.Success(w, gecho.WithMessage("success.auth.verificationEmailSent"), gecho.Send())
+		response.Send(gecho.Success(w, gecho.WithMessage("success.auth.verificationEmailSent")))
 		return
 	}
 
 	// Check if email is already verified
 	if user.EmailVerified {
 		ar.logger.Info("Email already verified", gecho.Field("user_id", user.Id))
-		gecho.Success(w, gecho.WithMessage("success.auth.emailAlreadyVerified"), gecho.Send())
+		response.Send(gecho.Success(w, gecho.WithMessage("success.auth.emailAlreadyVerified")))
 		return
 	}
 
@@ -62,12 +63,12 @@ func (ar *AuthRoutesManager) HandleResendVerification(w http.ResponseWriter, r *
 			ar.logger.Warn("Rate limit exceeded for verification email",
 				gecho.Field("user_id", user.Id),
 				gecho.Field("time_since_last", timeSinceLastEmail))
-			gecho.TooManyRequests(w,
+			response.Send(gecho.TooManyRequests(w,
 				gecho.WithMessage("error.rateLimitExceeded"),
 				gecho.WithData(map[string]interface{}{
 					"retry_after_seconds": int((2*time.Minute - timeSinceLastEmail).Seconds()),
 				}),
-				gecho.Send())
+			))
 			return
 		}
 	}
@@ -85,10 +86,10 @@ func (ar *AuthRoutesManager) HandleResendVerification(w http.ResponseWriter, r *
 	_, err = ar.emailService.SendVerificationEmail(user)
 	if err != nil {
 		ar.logger.Error("Failed to send verification email", gecho.Field("error", err), gecho.Field("user_id", user.Id))
-		gecho.InternalServerError(w, gecho.WithMessage("error.failedToSendEmail"), gecho.Send())
+		response.Send(gecho.InternalServerError(w, gecho.WithMessage("error.failedToSendEmail")))
 		return
 	}
 
 	ar.logger.Info("Verification email resent successfully", gecho.Field("user_id", user.Id))
-	gecho.Success(w, gecho.WithMessage("success.auth.verificationEmailSent"), gecho.Send())
+	response.Send(gecho.Success(w, gecho.WithMessage("success.auth.verificationEmailSent")))
 }

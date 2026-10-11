@@ -2,6 +2,7 @@ package fs
 
 import (
 	"errors"
+	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
@@ -16,10 +17,9 @@ func (frm *FileRoutesManager) UploadFile(w http.ResponseWriter, r *http.Request)
 	r.Body = http.MaxBytesReader(w, r.Body, frm.cfg.FileStorage.MaxUploadBytes+(1<<20))
 
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.file.parseFailed"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 	// Remove any temp files the parser spilled to disk
@@ -27,10 +27,9 @@ func (frm *FileRoutesManager) UploadFile(w http.ResponseWriter, r *http.Request)
 
 	file, handler, err := r.FormFile("file")
 	if err != nil {
-		gecho.BadRequest(w,
+		response.Send(gecho.BadRequest(w,
 			gecho.WithMessage("error.file.retrieveFailed"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 	defer file.Close()
@@ -40,27 +39,24 @@ func (frm *FileRoutesManager) UploadFile(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrTooLarge):
-			gecho.BadRequest(w, gecho.WithMessage("error.file.tooLarge"), gecho.Send())
+			response.Send(gecho.BadRequest(w, gecho.WithMessage("error.file.tooLarge")))
 		case errors.Is(err, services.ErrUnsupportedType):
-			gecho.BadRequest(w, gecho.WithMessage("error.file.unsupportedType"), gecho.Send())
+			response.Send(gecho.BadRequest(w, gecho.WithMessage("error.file.unsupportedType")))
 		case errors.Is(err, services.ErrBadImage):
-			gecho.BadRequest(w, gecho.WithMessage("error.file.invalidImage"), gecho.Send())
+			response.Send(gecho.BadRequest(w, gecho.WithMessage("error.file.invalidImage")))
 		default:
 			frm.logger.Error("Failed to save upload", gecho.Field("error", err))
-			gecho.InternalServerError(w,
+			response.Send(gecho.InternalServerError(w,
 				gecho.WithMessage("error.file.processFailed"),
-				gecho.Send(),
-			)
+			))
 		}
 		return
 	}
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.file.uploaded"),
 		gecho.WithData(map[string]any{
 			"name":   name,
 			"srcset": frm.fileService.SrcSet(name),
 		}),
-		gecho.Send(),
-	)
+	))
 }

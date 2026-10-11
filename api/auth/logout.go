@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"mamabloemetjes_server/api/response"
 	"mamabloemetjes_server/lib"
 	"net/http"
 
@@ -11,30 +12,27 @@ func (ar *AuthRoutesManager) HandleLogout(w http.ResponseWriter, r *http.Request
 
 	accessToken, err := lib.GetCookieValue(lib.AccessCookieName, r)
 	if err != nil {
-		gecho.Success(w,
+		response.Send(gecho.Success(w,
 			gecho.WithMessage("error.auth.noAccessTokenFound"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
 	claims, err := lib.ParseToken(accessToken, true, ar.cfg.Auth.AccessTokenSecret)
 	if err != nil {
 		ar.logger.Error("Failed to parse access token during logout", gecho.Field("error", err))
-		gecho.Success(w,
+		response.Send(gecho.Success(w,
 			gecho.WithMessage("error.auth.invalidAccessToken"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
 	err = ar.cacheService.BlacklistToken(claims.Jti, claims.Exp)
 	if err != nil {
 		ar.logger.Error("Failed to blacklist access token during logout", gecho.Field("error", err))
-		gecho.InternalServerError(w,
+		response.Send(gecho.InternalServerError(w,
 			gecho.WithMessage("error.auth.failedToLogout"),
-			gecho.Send(),
-		)
+		))
 		return
 	}
 
@@ -49,11 +47,8 @@ func (ar *AuthRoutesManager) HandleLogout(w http.ResponseWriter, r *http.Request
 	lib.ClearCookie(lib.AccessCookieName, w)
 	// Clear refresh token cookie
 	lib.ClearCookie(lib.RefreshCookieName, w)
-
 	// Blacklist the token
-
-	gecho.Success(w,
+	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.auth.loggedOut"),
-		gecho.Send(),
-	)
+	))
 }
