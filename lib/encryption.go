@@ -10,7 +10,7 @@ import (
 )
 
 // Encrypt encrypts plaintext using AES-GCM
-func Encrypt(plaintext string, key string) (string, error) {
+func Encrypt(plaintext, key string) (string, error) {
 	if plaintext == "" {
 		return "", nil
 	}
@@ -44,7 +44,7 @@ func Encrypt(plaintext string, key string) (string, error) {
 }
 
 // Decrypt decrypts ciphertext using AES-GCM
-func Decrypt(ciphertext string, key string) (string, error) {
+func Decrypt(ciphertext, key string) (string, error) {
 	if ciphertext == "" {
 		return "", nil
 	}
@@ -88,7 +88,7 @@ func Decrypt(ciphertext string, key string) (string, error) {
 }
 
 // MustEncrypt encrypts or panics (for testing/development)
-func MustEncrypt(plaintext string, key string) string {
+func MustEncrypt(plaintext, key string) string {
 	encrypted, err := Encrypt(plaintext, key)
 	if err != nil {
 		panic(err)
@@ -97,7 +97,7 @@ func MustEncrypt(plaintext string, key string) string {
 }
 
 // MustDecrypt decrypts or panics (for testing/development)
-func MustDecrypt(ciphertext string, key string) string {
+func MustDecrypt(ciphertext, key string) string {
 	decrypted, err := Decrypt(ciphertext, key)
 	if err != nil {
 		panic(err)

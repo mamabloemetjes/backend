@@ -2,10 +2,11 @@ package middleware
 
 import (
 	"crypto/subtle"
-	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
 )
 
 func (mw *Middleware) SecurityHeaders() func(http.Handler) http.Handler {

@@ -19,7 +19,6 @@ func RawQuery[T any](db *DB, ctx context.Context, query string, args ...any) ([]
 		data = nil // Reset on retry
 		return db.NewRaw(query, args...).Scan(ctx, &data)
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute raw query: %w (took %v)", err, time.Since(start))
 	}
@@ -35,7 +34,6 @@ func RawQueryOne[T any](db *DB, ctx context.Context, query string, args ...any) 
 	err := WithRetry(ctx, func() error {
 		return db.NewRaw(query, args...).Scan(ctx, &data)
 	})
-
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -59,7 +57,6 @@ func RawExec(db *DB, ctx context.Context, query string, args ...any) (int, error
 		rowsAffected, err = res.RowsAffected()
 		return err
 	}()
-
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute raw command: %w (took %v)", err, time.Since(start))
 	}
@@ -279,7 +276,6 @@ func Upsert[T any](db *DB, ctx context.Context, data *T, conflictColumn string, 
 		_, err := query.Exec(ctx)
 		return err
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute upsert: %w (took %v)", err, time.Since(start))
 	}
@@ -315,7 +311,6 @@ func BulkUpsert[T any](db *DB, ctx context.Context, data []T, conflictColumn str
 		_, err := query.Exec(ctx)
 		return err
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute bulk upsert: %w (took %v)", err, time.Since(start))
 	}
@@ -358,7 +353,7 @@ func Chunk[T any](ctx context.Context, query *QueryBuilder[T], chunkSize int, fn
 }
 
 // FirstOrCreate finds the first record matching conditions or creates it
-func FirstOrCreate[T any](db *DB, ctx context.Context, search map[string]any, defaults map[string]any, result *T) error {
+func FirstOrCreate[T any](db *DB, ctx context.Context, search, defaults map[string]any, result *T) error {
 	// Try to find existing record
 	q := Query[T](db)
 	for key, value := range search {
@@ -386,7 +381,7 @@ func FirstOrCreate[T any](db *DB, ctx context.Context, search map[string]any, de
 }
 
 // UpdateOrCreate updates an existing record or creates a new one
-func UpdateOrCreate[T any](db *DB, ctx context.Context, search map[string]any, updates map[string]any, result *T) error {
+func UpdateOrCreate[T any](db *DB, ctx context.Context, search, updates map[string]any, result *T) error {
 	// Try to find and update existing record
 	q := Query[T](db)
 	for key, value := range search {
@@ -433,7 +428,6 @@ func BulkInsertWithBatch[T any](db *DB, ctx context.Context, data []T, batchSize
 			_, err := db.NewInsert().Model(&batch).Exec(ctx)
 			return err
 		})
-
 		if err != nil {
 			return fmt.Errorf("failed to insert batch at index %d: %w", i, err)
 		}

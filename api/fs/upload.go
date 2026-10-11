@@ -2,12 +2,12 @@ package fs
 
 import (
 	"errors"
-	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
 
-	"mamabloemetjes_server/services"
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/services"
 )
 
 func (frm *FileRoutesManager) UploadFile(w http.ResponseWriter, r *http.Request) {

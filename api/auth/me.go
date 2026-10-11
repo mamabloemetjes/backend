@@ -1,11 +1,12 @@
 package auth
 
 import (
-	"mamabloemetjes_server/api/response"
-	"mamabloemetjes_server/lib"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
 )
 
 func (ar *AuthRoutesManager) HandleMe(w http.ResponseWriter, r *http.Request) {

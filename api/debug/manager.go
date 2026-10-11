@@ -1,10 +1,10 @@
 package debug
 
 import (
-	"mamabloemetjes_server/config"
-	"mamabloemetjes_server/services"
-
 	"github.com/go-chi/chi/v5"
+
+	"github.com/mamabloemetjes/backend/config"
+	"github.com/mamabloemetjes/backend/services"
 )
 
 type DebugRoutesManager struct {

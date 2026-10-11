@@ -1,10 +1,11 @@
 package health
 
 import (
-	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
 )
 
 func (hrm *HealthRoutesManager) GetServerHealth(w http.ResponseWriter, r *http.Request) {

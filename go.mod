@@ -1,4 +1,4 @@
-module mamabloemetjes_server
+module github.com/mamabloemetjes/backend
 
 go 1.27.2
 

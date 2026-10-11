@@ -2,15 +2,15 @@ package auth
 
 import (
 	"context"
-	"mamabloemetjes_server/api/response"
 	"net/http"
 	"time"
 
-	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs/tables"
-
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/database"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 type ResendVerificationRequest struct {

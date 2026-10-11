@@ -3,15 +3,16 @@ package services
 import (
 	"context"
 	"fmt"
-	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs"
-	"mamabloemetjes_server/structs/tables"
 	"runtime/debug"
 	"time"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/database"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/structs"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 type OrderService struct {
@@ -292,7 +293,6 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 			Set("updated_at = ?", time.Now()).
 			Where("id = ?", product.ID).
 			Exec(ctx)
-
 		if err != nil {
 			os.logger.Error("Failed to deactivate product",
 				gecho.Field("error", err),

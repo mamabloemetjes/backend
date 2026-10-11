@@ -2,15 +2,16 @@ package products
 
 import (
 	"errors"
-	"mamabloemetjes_server/api/response"
-	"mamabloemetjes_server/handling"
-	"mamabloemetjes_server/lib"
 	"net/http"
 	"strconv"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/handling"
+	"github.com/mamabloemetjes/backend/lib"
 )
 
 // FetchAllProducts handles GET /products with comprehensive filtering, pagination, and sorting

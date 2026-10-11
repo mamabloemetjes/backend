@@ -1,14 +1,15 @@
 package admin
 
 import (
-	"mamabloemetjes_server/api/response"
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs/tables"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 type AttachPaymentLinkRequest struct {

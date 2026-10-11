@@ -1,12 +1,13 @@
 package auth
 
 import (
-	"mamabloemetjes_server/api/response"
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/structs"
 )
 
 func (ar *AuthRoutesManager) HandleRegister(w http.ResponseWriter, r *http.Request) {

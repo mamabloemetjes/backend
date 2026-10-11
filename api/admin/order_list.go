@@ -1,14 +1,15 @@
 package admin
 
 import (
-	"mamabloemetjes_server/api/response"
-	"mamabloemetjes_server/structs/tables"
 	"net/http"
 	"strconv"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 // ListOrders returns a paginated list of orders with optional filtering

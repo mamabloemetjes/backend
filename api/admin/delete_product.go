@@ -1,14 +1,14 @@
 package admin
 
 import (
-	"mamabloemetjes_server/api/response"
-	"mamabloemetjes_server/lib"
 	"net/http"
-
-	"github.com/google/uuid"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
 )
 
 func (ar *AdminRoutesManager) DeleteProduct(w http.ResponseWriter, r *http.Request) {

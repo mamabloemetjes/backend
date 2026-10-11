@@ -34,5 +34,4 @@ func TestParseTokenRequiresAllClaims(t *testing.T) {
 	if err != nil || parsed == nil {
 		t.Fatalf("ParseToken() error = %v", err)
 	}
-
 }

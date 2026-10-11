@@ -2,11 +2,12 @@ package auth
 
 import (
 	"fmt"
-	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
 )
 
 // HandleVerifyEmail handles email verification requests and redirects to the frontend.

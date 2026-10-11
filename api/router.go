@@ -1,14 +1,15 @@
 package api
 
 import (
-	"mamabloemetjes_server/api/middleware"
-	"mamabloemetjes_server/api/response"
-	"mamabloemetjes_server/structs"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
 	chiware "github.com/go-chi/chi/v5/middleware"
+
+	"github.com/mamabloemetjes/backend/api/middleware"
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/structs"
 )
 
 func App(

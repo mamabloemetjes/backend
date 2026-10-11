@@ -32,7 +32,6 @@ func (q *QueryBuilder[T]) All(ctx context.Context) ([]T, error) {
 		query := q.buildBunQuery()
 		return query.Scan(ctx, &data)
 	})
-
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return nil, err
@@ -67,7 +66,6 @@ func (q *QueryBuilder[T]) First(ctx context.Context) (*T, error) {
 		query := q.buildBunQuery()
 		return query.Scan(ctx, &data)
 	})
-
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return nil, err
@@ -93,7 +91,6 @@ func (q *QueryBuilder[T]) Count(ctx context.Context) (int, error) {
 		count, err = query.Count(ctx)
 		return err
 	})
-
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return 0, err
@@ -140,7 +137,6 @@ func (q *QueryBuilder[T]) Insert(ctx context.Context, data *T) (*T, error) {
 		_, err := query.Exec(ctx)
 		return err
 	}()
-
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return nil, err
@@ -172,7 +168,6 @@ func (q *QueryBuilder[T]) InsertMany(ctx context.Context, data []T) ([]T, error)
 		_, err := query.Exec(ctx)
 		return err
 	}()
-
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return nil, err
@@ -224,7 +219,6 @@ func (q *QueryBuilder[T]) Update(ctx context.Context, data any) (int, error) {
 		rowsAffected, _ = res.RowsAffected()
 		return nil
 	}()
-
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return 0, err
@@ -274,7 +268,6 @@ func (q *QueryBuilder[T]) UpdateReturning(ctx context.Context, data any) ([]T, e
 		_, err := query.Exec(ctx, &results)
 		return err
 	}()
-
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return nil, err
@@ -312,7 +305,6 @@ func (q *QueryBuilder[T]) Delete(ctx context.Context) (int, error) {
 		rowsAffected, _ = res.RowsAffected()
 		return nil
 	}()
-
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return 0, err
@@ -350,7 +342,6 @@ func (q *QueryBuilder[T]) DeleteReturning(ctx context.Context) ([]T, error) {
 		_, err := query.Exec(ctx, &results)
 		return err
 	}()
-
 	if err != nil {
 		// Don't wrap the error - return it directly to preserve pgconn.PgError type
 		return nil, err

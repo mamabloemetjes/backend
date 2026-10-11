@@ -1,11 +1,12 @@
 package auth
 
 import (
-	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
+
+	"github.com/mamabloemetjes/backend/api/response"
 )
 
 // HandleCheckVerification checks if a user's email is verified

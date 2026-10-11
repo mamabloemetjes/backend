@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"mamabloemetjes_server/config"
 	"time"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
+
+	"github.com/mamabloemetjes/backend/config"
 )
 
 // DB wraps the bun database connection with additional functionality

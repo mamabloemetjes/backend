@@ -1,10 +1,11 @@
 package debug
 
 import (
-	"mamabloemetjes_server/api/response"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
 )
 
 func (drm *DebugRoutesManager) ClearCache(w http.ResponseWriter, r *http.Request) {

@@ -2,16 +2,22 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-cmd = "go build -o ./tmp/server ./main.go"
-bin = "./tmp/server"
+cmd = "go build -o ./tmp/server ."
+entrypoint = ["./tmp/server"]
 include_ext = ["go"]
-exclude_dir = ["tmp", "vendor", "originals", "uploads", ".git"]
+include_file = ["go.mod"]
+exclude_dir = ["tmp", "vendor", "originals", "uploads", ".git", ".next", "node_modules", "testdata"]
+exclude_regex = ["_test\\.go$"]
+exclude_unchanged = true
 delay = 200
+stop_on_error = false
 send_interrupt = true
 kill_delay = "500ms"
+log = "build-errors.log"
 
 [log]
 time = false
+main_only = false
 
 [misc]
 clean_on_exit = true

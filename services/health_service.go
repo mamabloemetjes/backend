@@ -2,15 +2,18 @@ package services
 
 import (
 	"context"
-	"mamabloemetjes_server/database"
 	"runtime"
 	"time"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/database"
 )
 
-var uptimeStart time.Time
-var lastChecked time.Time
+var (
+	uptimeStart time.Time
+	lastChecked time.Time
+)
 
 func init() {
 	uptimeStart = time.Now()

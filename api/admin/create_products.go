@@ -1,12 +1,13 @@
 package admin
 
 import (
-	"mamabloemetjes_server/api/response"
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs/tables"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 func (ar *AdminRoutesManager) CreateProduct(w http.ResponseWriter, r *http.Request) {

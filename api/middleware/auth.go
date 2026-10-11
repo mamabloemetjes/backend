@@ -2,13 +2,14 @@ package middleware
 
 import (
 	"context"
-	"mamabloemetjes_server/api/response"
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs"
-	"mamabloemetjes_server/structs/tables"
 	"net/http"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/structs"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 // Context keys for storing user data in request context

@@ -5,16 +5,17 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"mamabloemetjes_server/database"
-	"mamabloemetjes_server/lib"
-	"mamabloemetjes_server/structs"
-	"mamabloemetjes_server/structs/tables"
 	"time"
 
 	"github.com/MonkyMars/gecho"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/argon2"
+
+	"github.com/mamabloemetjes/backend/database"
+	"github.com/mamabloemetjes/backend/lib"
+	"github.com/mamabloemetjes/backend/structs"
+	"github.com/mamabloemetjes/backend/structs/tables"
 )
 
 var DefaultParams = &structs.ArgonParams{

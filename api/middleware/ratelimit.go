@@ -2,18 +2,18 @@ package middleware
 
 import (
 	"fmt"
-	"mamabloemetjes_server/api/response"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/MonkyMars/gecho"
+
+	"github.com/mamabloemetjes/backend/api/response"
 )
 
 // getRateLimitForEndpoint determines which rate limit to apply based on config
 func (mw *Middleware) getRateLimitForEndpoint(path, method string) (int, time.Duration) {
-
 	// Order creation - very strict limit (1 per 30 minutes)
 	if strings.HasPrefix(path, "/orders/create") && method == http.MethodPost {
 		return 1, 30 * time.Minute

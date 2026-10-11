@@ -1,11 +1,11 @@
 package orders
 
 import (
-	"mamabloemetjes_server/api/middleware"
-	"mamabloemetjes_server/services"
-
 	"github.com/MonkyMars/gecho"
 	"github.com/go-chi/chi/v5"
+
+	"github.com/mamabloemetjes/backend/api/middleware"
+	"github.com/mamabloemetjes/backend/services"
 )
 
 type OrderRoutesManager struct {

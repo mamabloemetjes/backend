@@ -3,11 +3,12 @@ package config
 import (
 	"fmt"
 	"log"
-	"mamabloemetjes_server/structs"
 	"sync"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+
+	"github.com/mamabloemetjes/backend/structs"
 )
 
 var (
