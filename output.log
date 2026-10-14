@@ -1,0 +1,127 @@
+[Go/build] ⭐ Run Set up job
+[Go/build] 🚀  Start image=node:16-buster-slim
+[Go/build]   🐳  docker pull image=node:16-buster-slim platform= username= forcePull=true
+[Go/build]   🐳  docker create image=node:16-buster-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[Go/build]   🐳  docker run image=node:16-buster-slim platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[Go/build]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[Go/build]   ✅  Success - Set up job
+[Go/build]   ☁  git clone 'https://github.com/actions/setup-go' # ref=v4
+[Go/build]   ☁  git clone 'https://github.com/golang/govulncheck-action' # ref=v1
+[Go/build] ⭐ Run Pre Dependency vulnerability scan
+[Go/build]   ☁  git clone 'https://github.com/actions/setup-go' # ref=7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5
+[Go/build]   ✅  Success - Pre Dependency vulnerability scan [963.045382ms]
+[Go/build]   ☁  git clone 'https://github.com/gitleaks/gitleaks-action' # ref=v2
+[Go/build] ⭐ Run Main actions/checkout@v4
+[Go/build]   🐳  docker cp src=/home/monky/Coding/mamabloemetjes/backend/. dst=/home/monky/Coding/mamabloemetjes/backend
+[Go/build]   ✅  Success - Main actions/checkout@v4 [35.508412ms]
+[Go/build] ⭐ Run Main Set up Go
+[Go/build]   🐳  docker cp src=/home/monky/.cache/act/actions-setup-go@v4/ dst=/var/run/act/actions/actions-setup-go@v4/
+[Go/build]   🐳  docker exec cmd=[/usr/local/bin/node /var/run/act/actions/actions-setup-go@v4/dist/setup/index.js] user= workdir=
+[Go/build]   | Setup go version spec 1.27.2
+[Go/build]   | Found in cache @ /opt/hostedtoolcache/go/1.27.2/x64
+[Go/build]   | Added go to the path
+[Go/build]   | Successfully set up Go version 1.27.2
+[Go/build]   | [command]/opt/hostedtoolcache/go/1.27.2/x64/bin/go env GOMODCACHE
+[Go/build]   | [command]/opt/hostedtoolcache/go/1.27.2/x64/bin/go env GOCACHE
+[Go/build]   | /root/go/pkg/mod
+[Go/build]   | /root/.cache/go-build
+[Go/build]   | Cache is not found
+[Go/build]   ❓ add-matcher /run/act/actions/actions-setup-go@v4/matchers.json
+[Go/build]   | go version go1.27.2 linux/amd64
+[Go/build]   | 
+[Go/build]   ❓  ::group::go env
+[Go/build]   | AR='ar'
+[Go/build]   | CC='gcc'
+[Go/build]   | CGO_CFLAGS='-O2 -g'
+[Go/build]   | CGO_CPPFLAGS=''
+[Go/build]   | CGO_CXXFLAGS='-O2 -g'
+[Go/build]   | CGO_ENABLED='0'
+[Go/build]   | CGO_FFLAGS='-O2 -g'
+[Go/build]   | CGO_LDFLAGS='-O2 -g'
+[Go/build]   | CXX='g++'
+[Go/build]   | GCCGO='gccgo'
+[Go/build]   | GO111MODULE=''
+[Go/build]   | GOAMD64='v1'
+[Go/build]   | GOARCH='amd64'
+[Go/build]   | GOAUTH='netrc'
+[Go/build]   | GOBIN='/root/go/bin'
+[Go/build]   | GOCACHE='/root/.cache/go-build'
+[Go/build]   | GOCACHEPROG=''
+[Go/build]   | GODEBUG=''
+[Go/build]   | GOENV='/root/.config/go/env'
+[Go/build]   | GOEXE=''
+[Go/build]   | GOEXPERIMENT=''
+[Go/build]   | GOFIPS140='off'
+[Go/build]   | GOFLAGS=''
+[Go/build]   | GOGCCFLAGS='-fPIC -m64 -fno-caret-diagnostics -Qunused-arguments -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build2765092867=/tmp/go-build -gno-record-gcc-switches'
+[Go/build]   | GOHOSTARCH='amd64'
+[Go/build]   | GOHOSTOS='linux'
+[Go/build]   | GOINSECURE=''
+[Go/build]   | GOMOD='/home/monky/Coding/mamabloemetjes/backend/go.mod'
+[Go/build]   | GOMODCACHE='/root/go/pkg/mod'
+[Go/build]   | GONOPROXY=''
+[Go/build]   | GONOSUMDB=''
+[Go/build]   | GOOS='linux'
+[Go/build]   | GOPACKAGESDRIVER=''
+[Go/build]   | GOPATH='/root/go'
+[Go/build]   | GOPRIVATE=''
+[Go/build]   | GOPROXY='https://proxy.golang.org,direct'
+[Go/build]   | GOROOT='/opt/hostedtoolcache/go/1.27.2/x64'
+[Go/build]   | GOSUMDB='sum.golang.org'
+[Go/build]   | GOTELEMETRY='local'
+[Go/build]   | GOTELEMETRYDIR='/root/.config/go/telemetry'
+[Go/build]   | GOTMPDIR=''
+[Go/build]   | GOTOOLCHAIN='auto'
+[Go/build]   | GOTOOLDIR='/opt/hostedtoolcache/go/1.27.2/x64/pkg/tool/linux_amd64'
+[Go/build]   | GOVCS=''
+[Go/build]   | GOVERSION='go1.27.2'
+[Go/build]   | GOWORK=''
+[Go/build]   | PKG_CONFIG='pkg-config'
+[Go/build]   | 
+[Go/build]   ❓  ::endgroup::
+[Go/build]   ✅  Success - Main Set up Go [505.739571ms]
+[Go/build]   ⚙  ::set-output:: cache-hit=false
+[Go/build]   ⚙  ::set-output:: go-version=1.27.2
+[Go/build]   ⚙  ::add-path:: /opt/hostedtoolcache/go/1.27.2/x64/bin
+[Go/build]   ⚙  ::add-path:: /root/go/bin
+[Go/build] ⭐ Run Main Build
+[Go/build]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/2] user= workdir=
+[Go/build]   | go: downloading github.com/MonkyMars/gecho v0.8.0
+[Go/build]   | go: downloading github.com/go-chi/chi/v5 v5.2.3
+[Go/build]   | go: downloading github.com/google/uuid v1.6.0
+[Go/build]   | go: downloading github.com/disintegration/imaging v1.6.2
+[Go/build]   | go: downloading github.com/golang-jwt/jwt/v5 v5.3.0
+[Go/build]   | go: downloading github.com/prometheus/client_golang v1.23.2
+[Go/build]   | go: downloading github.com/redis/go-redis/v9 v9.17.2
+[Go/build]   | go: downloading github.com/go-playground/validator/v10 v10.30.1
+[Go/build]   | go: downloading github.com/resend/resend-go/v3 v3.0.0
+[Go/build]   | go: downloading github.com/rs/cors v1.11.1
+[Go/build]   | go: downloading github.com/uptrace/bun v1.2.16
+[Go/build]   | go: downloading golang.org/x/crypto v0.46.0
+[Go/build]   | go: downloading github.com/jackc/pgx/v5 v5.7.6
+[Go/build]   | go: downloading github.com/joho/godotenv v1.5.1
+[Go/build]   | go: downloading github.com/uptrace/bun/dialect/pgdialect v1.2.16
+[Go/build]   | go: downloading github.com/uptrace/bun/driver/pgdriver v1.2.16
+[Go/build]   | main.go:14:2: github.com/MonkyMars/gecho@v0.8.0: Get "https://proxy.golang.org/github.com/%21monky%21mars/gecho/@v/v0.8.0.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | main.go:15:2: github.com/joho/godotenv@v1.5.1: Get "https://proxy.golang.org/github.com/joho/godotenv/@v/v1.5.1.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | api/manager.go:4:2: github.com/go-chi/chi/v5@v5.2.3: Get "https://proxy.golang.org/github.com/go-chi/chi/v5/@v/v5.2.3.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | api/router.go:8:2: github.com/go-chi/chi/v5@v5.2.3: Get "https://proxy.golang.org/github.com/go-chi/chi/v5/@v/v5.2.3.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | api/admin/delete_product.go:8:2: github.com/google/uuid@v1.6.0: Get "https://proxy.golang.org/github.com/google/uuid/@v/v1.6.0.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | config/config.go:10:2: github.com/go-playground/validator/v10@v10.30.1: Get "https://proxy.golang.org/github.com/go-playground/validator/v10/@v/v10.30.1.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | services/fs_service.go:22:2: github.com/disintegration/imaging@v1.6.2: Get "https://proxy.golang.org/github.com/disintegration/imaging/@v/v1.6.2.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | services/auth_service.go:11:2: github.com/golang-jwt/jwt/v5@v5.3.0: Get "https://proxy.golang.org/github.com/golang-jwt/jwt/v5/@v/v5.3.0.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | database/retry.go:10:2: github.com/jackc/pgx/v5@v5.7.6: Get "https://proxy.golang.org/github.com/jackc/pgx/v5/@v/v5.7.6.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | database/builder.go:9:2: github.com/uptrace/bun@v1.2.16: Get "https://proxy.golang.org/github.com/uptrace/bun/@v/v1.2.16.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | database/query.go:11:2: github.com/uptrace/bun/dialect/pgdialect@v1.2.16: Get "https://proxy.golang.org/github.com/uptrace/bun/dialect/pgdialect/@v/v1.2.16.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | database/query.go:12:2: github.com/uptrace/bun/driver/pgdriver@v1.2.16: Get "https://proxy.golang.org/github.com/uptrace/bun/driver/pgdriver/@v/v1.2.16.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | lib/password.go:10:2: golang.org/x/crypto@v0.46.0: Get "https://proxy.golang.org/golang.org/x/crypto/@v/v0.46.0.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | services/cache_metrics.go:7:2: github.com/prometheus/client_golang@v1.23.2: Get "https://proxy.golang.org/github.com/prometheus/client_golang/@v/v1.23.2.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | services/cache_service.go:15:2: github.com/redis/go-redis/v9@v9.17.2: Get "https://proxy.golang.org/github.com/redis/go-redis/v9/@v/v9.17.2.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | services/email_service.go:11:2: github.com/resend/resend-go/v3@v3.0.0: Get "https://proxy.golang.org/github.com/resend/resend-go/v3/@v/v3.0.0.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | api/health/manager.go:10:2: github.com/prometheus/client_golang@v1.23.2: Get "https://proxy.golang.org/github.com/prometheus/client_golang/@v/v1.23.2.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   | api/middleware/cors.go:4:2: github.com/rs/cors@v1.11.1: Get "https://proxy.golang.org/github.com/rs/cors/@v/v1.11.1.zip": tls: failed to verify certificate: x509: certificate signed by unknown authority
+[Go/build]   ❌  Failure - Main Build [1.040849916s]
+[Go/build] exitcode '1': failure
+[Go/build] ⭐ Run Complete job
+[Go/build]   ✅  Success - Complete job
+[Go/build] 🏁  Job failed

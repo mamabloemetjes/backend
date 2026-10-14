@@ -5,7 +5,7 @@ go 1.27.2
 require (
 	github.com/MonkyMars/gecho v0.8.0 // direct
 	github.com/disintegration/imaging v1.6.2
-	github.com/go-chi/chi/v5 v5.2.3 // direct
+	github.com/go-chi/chi/v5 v5.3.0 // direct
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
@@ -43,9 +43,9 @@ require (
 	go.opentelemetry.io/otel v1.38.0 // indirect
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
+	golang.org/x/image v0.43.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 )
