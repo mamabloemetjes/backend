@@ -5,3 +5,6 @@ scrape_configs:
   - job_name: "mamabloemetjes-backend"
     static_configs:
       - targets: ["host.docker.internal:8081"]
+    authorization:
+        type: Bearer
+        credentials: "${MONITORING_TOKEN}"
