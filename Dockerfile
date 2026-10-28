@@ -23,6 +23,9 @@ CMD ["air", "-c", ".air.toml"]
 # --- Stage 1: Build the Go binary ---
 FROM golang:1.27.2-alpine AS builder
 
+# git is needed for modules that get resolved directly from their repo
+RUN apk add --no-cache git
+
 WORKDIR /app
 
 # Cache dependencies separately
