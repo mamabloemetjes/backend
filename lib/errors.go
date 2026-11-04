@@ -264,9 +264,6 @@ func createCheckViolationMessage(constraint string) string {
 	if strings.Contains(lower, "price") || strings.Contains(lower, "amount") {
 		return "error.checkViolation.positiveValue"
 	}
-	if strings.Contains(lower, "stock") {
-		return "error.checkViolation.stockQuantity"
-	}
 	if strings.Contains(lower, "expires") {
 		return "error.checkViolation.futureDate"
 	}

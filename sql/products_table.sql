@@ -63,7 +63,6 @@ CREATE TABLE public.products (
     discount bigint DEFAULT 0 NOT NULL,
     tax bigint DEFAULT 0 NOT NULL,
     subtotal bigint DEFAULT 0 NOT NULL,
-    stock integer DEFAULT 0 NOT NULL,
     status text DEFAULT 'active'::text NOT NULL,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -73,7 +72,6 @@ CREATE TABLE public.products (
     CONSTRAINT products_discount_check CHECK ((discount >= 0)),
     CONSTRAINT products_price_check CHECK ((price >= 0)),
     CONSTRAINT products_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text, 'sold'::text, 'deleted'::text]))),
-    CONSTRAINT products_stock_check CHECK ((stock >= 0)),
     CONSTRAINT products_subtotal_check CHECK ((subtotal >= 0)),
     CONSTRAINT products_tax_check CHECK ((tax >= 0))
 );
@@ -90,7 +88,8 @@ COMMENT ON TABLE public.products IS 'Main products table storing all product inf
 -- Name: COLUMN products.sku; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.products.sku IS 'Stock Keeping Unit - unique identifier for inventory management';
+	// SKU is a unique identifier for inventory management
+COMMENT ON COLUMN public.products.sku IS 'Unique identifier for inventory management';
 
 
 --
@@ -119,13 +118,6 @@ COMMENT ON COLUMN public.products.tax IS 'Tax amount in cents';
 --
 
 COMMENT ON COLUMN public.products.subtotal IS 'Subtotal in cents (price - discount + tax)';
-
-
---
--- Name: COLUMN products.stock; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.products.stock IS 'Current inventory stock level';
 
 
 --
@@ -181,17 +173,10 @@ CREATE INDEX idx_product_images_product_primary ON public.product_images USING b
 
 
 --
--- Name: idx_products_inventory; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_products_inventory ON public.products USING btree (stock) WHERE (status = 'active'::text);
-
-
---
 -- Name: idx_products_listing_cover; Type: INDEX; Schema: public; Owner: -
 --
-
-CREATE INDEX idx_products_listing_cover ON public.products USING btree (created_at DESC, id) INCLUDE (name, sku, price, stock) WHERE (status = 'active'::text);
+--
+CREATE INDEX idx_products_listing_cover ON public.products USING btree (created_at DESC, id) INCLUDE (name, sku, price) WHERE (status = 'active'::text);
 
 
 --

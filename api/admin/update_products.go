@@ -22,16 +22,11 @@ type UpdateProductRequest struct {
 	Description *string               `json:"description,omitempty" validate:"omitempty,min=10,max=2000"`
 	Status      *string               `json:"status,omitempty" validate:"omitempty,oneof=active inactive sold deleted"`
 	ProductType *string               `json:"product_type,omitempty" validate:"omitempty,min=2,max=100"`
-	Stock       *uint16               `json:"stock,omitempty" validate:"omitempty,gte=0"`
 	Images      []tables.ProductImage `json:"images,omitempty" validate:"omitempty,dive"`
 }
 
 type UpdateProductsRequest struct {
 	Products map[string]UpdateProductRequest `json:"products" validate:"required,min=1,dive,keys,uuid4,endkeys"`
-}
-
-type UpdateProductsStockRequest struct {
-	Stocks map[string]int `json:"stocks" validate:"required,min=1,dive,keys,uuid4,endkeys,required,gte=0"`
 }
 
 func (ar *AdminRoutesManager) UpdateProducts(w http.ResponseWriter, r *http.Request) {

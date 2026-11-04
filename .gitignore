@@ -4,6 +4,7 @@
 
 bin/
 tmp/
+originals/
 uploads/
 *debug_bin*
 
