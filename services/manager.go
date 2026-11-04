@@ -3,8 +3,8 @@ package services
 import (
 	"github.com/MonkyMars/gecho"
 
-	"github.com/mamabloemetjes/backend/database"
 	"github.com/mamabloemetjes/backend/structs"
+	"github.com/mamabloemetjes/mdatabase"
 )
 
 type ServiceManager struct {
@@ -17,7 +17,7 @@ type ServiceManager struct {
 	OrderService      *OrderService
 }
 
-func NewServiceManager(logger *gecho.Logger, cfg *structs.Config, db *database.DB) *ServiceManager {
+func NewServiceManager(logger *gecho.Logger, cfg *structs.Config, db *mdatabase.DB) *ServiceManager {
 	authService := NewAuthService(cfg, logger, db)
 	cacheService := NewCacheService(logger, cfg)
 	emailService := NewEmailService(logger, cfg, db)

@@ -1,9 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- Dev stage: hot reload with air (only built with --target dev) ---
-FROM golang:1.27.2-alpine AS dev
-
-RUN apk add --no-cache git libwebp-tools
+FROM golang:1.27.3-alpine AS dev
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -21,7 +19,7 @@ CMD ["air", "-c", ".air.toml"]
 
 
 # --- Stage 1: Build the Go binary ---
-FROM golang:1.27.2-alpine AS builder
+FROM golang:1.27.3-alpine AS builder
 
 # git is needed for modules that get resolved directly from their repo
 RUN apk add --no-cache git

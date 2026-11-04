@@ -74,6 +74,7 @@ func (orm *OrderRoutesManager) CreateOrder(w http.ResponseWriter, r *http.Reques
 			}
 		}()
 	}
+
 	response.Send(gecho.Success(w,
 		gecho.WithMessage("success.order.created"),
 		gecho.WithData(map[string]any{

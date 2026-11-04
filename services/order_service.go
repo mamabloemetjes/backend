@@ -9,16 +9,16 @@ import (
 	"github.com/MonkyMars/gecho"
 	"github.com/google/uuid"
 
-	"github.com/mamabloemetjes/backend/database"
 	"github.com/mamabloemetjes/backend/lib"
 	"github.com/mamabloemetjes/backend/structs"
 	"github.com/mamabloemetjes/backend/structs/tables"
+	"github.com/mamabloemetjes/mdatabase"
 )
 
 type OrderService struct {
 	logger         *gecho.Logger
 	cfg            *structs.Config
-	db             *database.DB
+	db             *mdatabase.DB
 	productService *ProductService
 	emailService   *EmailService
 }
@@ -26,7 +26,7 @@ type OrderService struct {
 func NewOrderService(
 	logger *gecho.Logger,
 	cfg *structs.Config,
-	db *database.DB,
+	db *mdatabase.DB,
 	productService *ProductService,
 	emailService *EmailService,
 ) *OrderService {
@@ -51,7 +51,7 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 	os.logger.Info("CreateOrderFromRequest started", gecho.Field("products_count", len(req.Products)))
 
 	if idempotencyKey != "" {
-		existingOrder, lookupErr := database.Query[tables.Order](os.db).
+		existingOrder, lookupErr := mdatabase.Query[tables.Order](os.db).
 			Where("idempotency_key", idempotencyKey).
 			WhereRaw("deleted_at IS NULL").
 			First(ctx)
@@ -361,7 +361,7 @@ func (os *OrderService) CreateOrderFromRequest(ctx context.Context, req *structs
 
 // GetOrderById retrieves an order by ID with decrypted PII
 func (os *OrderService) GetOrderById(ctx context.Context, orderId uuid.UUID) (*tables.Order, error) {
-	order, err := database.Query[tables.Order](os.db).
+	order, err := mdatabase.Query[tables.Order](os.db).
 		Where("id", orderId).
 		WhereRaw("deleted_at IS NULL").
 		First(ctx)
@@ -402,7 +402,7 @@ func (os *OrderService) GetOrderById(ctx context.Context, orderId uuid.UUID) (*t
 
 // GetAddressById retrieves an address by ID with decrypted fields
 func (os *OrderService) GetAddressById(ctx context.Context, addressId uuid.UUID) (*tables.Address, error) {
-	address, err := database.Query[tables.Address](os.db).
+	address, err := mdatabase.Query[tables.Address](os.db).
 		Where("id", addressId).
 		First(ctx)
 	if err != nil {
@@ -435,7 +435,7 @@ func (os *OrderService) GetAddressById(ctx context.Context, addressId uuid.UUID)
 
 // GetOrderByOrderNumber retrieves an order by order number with decrypted PII
 func (os *OrderService) GetOrderByOrderNumber(ctx context.Context, orderNumber string) (*tables.Order, error) {
-	order, err := database.Query[tables.Order](os.db).
+	order, err := mdatabase.Query[tables.Order](os.db).
 		Where("order_number", orderNumber).
 		WhereRaw("deleted_at IS NULL").
 		First(ctx)
@@ -476,7 +476,7 @@ func (os *OrderService) GetOrderByOrderNumber(ctx context.Context, orderNumber s
 
 // GetAllOrders retrieves all orders with optional filtering
 func (os *OrderService) GetAllOrders(ctx context.Context, status *tables.OrderStatus, paymentStatus *tables.PaymentStatus, limit, offset int) ([]*tables.Order, int, error) {
-	query := database.Query[tables.Order](os.db).
+	query := mdatabase.Query[tables.Order](os.db).
 		WhereRaw("deleted_at IS NULL")
 
 	if status != nil {
@@ -495,7 +495,7 @@ func (os *OrderService) GetAllOrders(ctx context.Context, status *tables.OrderSt
 
 	// Get paginated results
 	orders, err := query.
-		OrderBy("created_at", database.DESC).
+		OrderBy("created_at", mdatabase.DESC).
 		Limit(limit).
 		Offset(offset).
 		All(ctx)
@@ -540,7 +540,7 @@ func (os *OrderService) GetAllOrders(ctx context.Context, status *tables.OrderSt
 // GetOrdersByUserId retrieves all orders for a specific user
 func (os *OrderService) GetOrdersByUserId(ctx context.Context, userId uuid.UUID) ([]*tables.Order, error) {
 	// First get all addresses for the user
-	addresses, err := database.Query[tables.Address](os.db).
+	addresses, err := mdatabase.Query[tables.Address](os.db).
 		WhereRaw("user_id = ?", userId).
 		All(ctx)
 	if err != nil {
@@ -565,10 +565,10 @@ func (os *OrderService) GetOrdersByUserId(ctx context.Context, userId uuid.UUID)
 	}
 
 	// Get orders with those addresses
-	orders, err := database.Query[tables.Order](os.db).
+	orders, err := mdatabase.Query[tables.Order](os.db).
 		WhereIn("address_id", addressIdsIface).
 		WhereRaw("deleted_at IS NULL").
-		OrderBy("created_at", database.DESC).
+		OrderBy("created_at", mdatabase.DESC).
 		All(ctx)
 	if err != nil {
 		return nil, lib.MapPgError(err)
@@ -610,7 +610,7 @@ func (os *OrderService) GetOrdersByUserId(ctx context.Context, userId uuid.UUID)
 
 // GetOrderLinesByOrderId retrieves all order lines for an order
 func (os *OrderService) GetOrderLinesByOrderId(ctx context.Context, orderId uuid.UUID) ([]*tables.OrderLine, error) {
-	orderLines, err := database.Query[tables.OrderLine](os.db).
+	orderLines, err := mdatabase.Query[tables.OrderLine](os.db).
 		Where("order_id", orderId).
 		All(ctx)
 	if err != nil {
@@ -631,10 +631,10 @@ func (os *OrderService) GetOrderLinesByOrderId(ctx context.Context, orderId uuid
 		return result, nil
 	}
 
-	images, err := database.Query[tables.ProductImage](os.db).
+	images, err := mdatabase.Query[tables.ProductImage](os.db).
 		WhereIn("product_id", productIDs).
-		OrderBy("is_primary", database.DESC).
-		OrderBy("position", database.ASC).
+		OrderBy("is_primary", mdatabase.DESC).
+		OrderBy("position", mdatabase.ASC).
 		All(ctx)
 	if err != nil {
 		return nil, lib.MapPgError(err)
@@ -838,9 +838,9 @@ func (os *OrderService) CreateAddress(ctx context.Context, address *tables.Addre
 
 // GetUserAddresses retrieves all addresses for a user with decrypted fields
 func (os *OrderService) GetUserAddresses(ctx context.Context, userId uuid.UUID) ([]*tables.Address, error) {
-	addresses, err := database.Query[tables.Address](os.db).
+	addresses, err := mdatabase.Query[tables.Address](os.db).
 		Where("user_id", userId).
-		OrderBy("created_at", database.DESC).
+		OrderBy("created_at", mdatabase.DESC).
 		All(ctx)
 	if err != nil {
 		return nil, lib.MapPgError(err)

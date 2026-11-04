@@ -8,9 +8,9 @@ import (
 	"github.com/MonkyMars/gecho"
 
 	"github.com/mamabloemetjes/backend/api/response"
-	"github.com/mamabloemetjes/backend/database"
 	"github.com/mamabloemetjes/backend/lib"
 	"github.com/mamabloemetjes/backend/structs/tables"
+	"github.com/mamabloemetjes/mdatabase"
 )
 
 type ResendVerificationRequest struct {
@@ -27,7 +27,7 @@ func (ar *AuthRoutesManager) HandleResendVerification(w http.ResponseWriter, r *
 	}
 
 	// Find the user by email
-	user, err := database.Query[tables.User](ar.authService.GetDB()).
+	user, err := mdatabase.Query[tables.User](ar.authService.GetDB()).
 		Where("email", body.Email).
 		First(context.Background())
 	if err != nil {
@@ -52,7 +52,7 @@ func (ar *AuthRoutesManager) HandleResendVerification(w http.ResponseWriter, r *
 	}
 
 	// Check for rate limiting - prevent spam (max 1 email per 2 minutes)
-	recentVerification, err := database.Query[tables.EmailVerification](ar.authService.GetDB()).
+	recentVerification, err := mdatabase.Query[tables.EmailVerification](ar.authService.GetDB()).
 		Where("user_id", user.Id).
 		OrderBy("created_at", "DESC").
 		First(context.Background())
@@ -74,7 +74,7 @@ func (ar *AuthRoutesManager) HandleResendVerification(w http.ResponseWriter, r *
 	}
 
 	// Delete any existing verification tokens for this user
-	_, err = database.Query[tables.EmailVerification](ar.authService.GetDB()).
+	_, err = mdatabase.Query[tables.EmailVerification](ar.authService.GetDB()).
 		Where("user_id", user.Id).
 		Delete(context.Background())
 	if err != nil {

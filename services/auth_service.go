@@ -12,10 +12,10 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/argon2"
 
-	"github.com/mamabloemetjes/backend/database"
 	"github.com/mamabloemetjes/backend/lib"
 	"github.com/mamabloemetjes/backend/structs"
 	"github.com/mamabloemetjes/backend/structs/tables"
+	"github.com/mamabloemetjes/mdatabase"
 )
 
 var DefaultParams = &structs.ArgonParams{
@@ -29,11 +29,11 @@ var DefaultParams = &structs.ArgonParams{
 type AuthService struct {
 	logger       *gecho.Logger
 	cfg          *structs.Config
-	db           *database.DB
+	db           *mdatabase.DB
 	cacheService *CacheService
 }
 
-func NewAuthService(cfg *structs.Config, logger *gecho.Logger, db *database.DB) *AuthService {
+func NewAuthService(cfg *structs.Config, logger *gecho.Logger, db *mdatabase.DB) *AuthService {
 	return &AuthService{
 		logger:       logger,
 		cfg:          cfg,
@@ -44,7 +44,7 @@ func NewAuthService(cfg *structs.Config, logger *gecho.Logger, db *database.DB) 
 
 func (as *AuthService) Login(authRequest *structs.AuthRequest) (*tables.User, error) {
 	startTime := time.Now()
-	user, err := database.Query[tables.User](as.db).Where("email", authRequest.Email).First(context.Background())
+	user, err := mdatabase.Query[tables.User](as.db).Where("email", authRequest.Email).First(context.Background())
 	if err != nil {
 		// Map database error to user-friendly message
 		mappedErr := lib.MapPgError(err)
@@ -117,7 +117,7 @@ func (as *AuthService) Register(registerRequest *structs.RegisterRequest) (*tabl
 		Email:        registerRequest.Email,
 		PasswordHash: passwordHash,
 	}
-	user, err = database.Query[tables.User](as.db).Insert(context.Background(), user)
+	user, err = mdatabase.Query[tables.User](as.db).Insert(context.Background(), user)
 	if err != nil {
 		// Map the error to a user-friendly message
 		mappedErr := lib.MapPgError(err)
@@ -314,7 +314,7 @@ func (as *AuthService) GetUserByID(userId uuid.UUID) (*tables.User, error) {
 	}
 
 	// Cache miss - fetch user from database
-	user, err := database.Query[tables.User](as.db).Where("id", userId).First(context.Background())
+	user, err := mdatabase.Query[tables.User](as.db).Where("id", userId).First(context.Background())
 	if err != nil {
 		as.logger.Error("Failed to find user by ID", gecho.Field("error", err), gecho.Field("user_id", userId))
 		return nil, lib.MapPgError(err)
@@ -344,7 +344,7 @@ func (as *AuthService) UpdateLastLogin(userId uuid.UUID) error {
 	updates := map[string]any{
 		"last_login": time.Now(),
 	}
-	_, err := database.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
+	_, err := mdatabase.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
 	if err != nil {
 		return lib.MapPgError(err)
 	}
@@ -353,7 +353,7 @@ func (as *AuthService) UpdateLastLogin(userId uuid.UUID) error {
 
 func (as *AuthService) VerifyEmail(userId uuid.UUID, token string) error {
 	// Get verification record
-	verification, err := database.Query[tables.EmailVerification](as.db).
+	verification, err := mdatabase.Query[tables.EmailVerification](as.db).
 		Where("user_id", userId).
 		Where("token", token).
 		First(context.Background())
@@ -381,14 +381,14 @@ func (as *AuthService) VerifyEmail(userId uuid.UUID, token string) error {
 	updates := map[string]any{
 		"email_verified": true,
 	}
-	_, err = database.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
+	_, err = mdatabase.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
 	if err != nil {
 		as.logger.Error("Failed to update user email verification status", gecho.Field("error", err), gecho.Field("user_id", userId))
 		return lib.MapPgError(err)
 	}
 
 	// Delete verification record
-	_, err = database.Query[tables.EmailVerification](as.db).Where("id", verification.Id).Delete(context.Background())
+	_, err = mdatabase.Query[tables.EmailVerification](as.db).Where("id", verification.Id).Delete(context.Background())
 	if err != nil {
 		as.logger.Error("Failed to delete email verification record", gecho.Field("error", err), gecho.Field("user_id", userId))
 		return lib.MapPgError(err)
@@ -399,6 +399,6 @@ func (as *AuthService) VerifyEmail(userId uuid.UUID, token string) error {
 }
 
 // GetDB returns the database instance (helper method for accessing db)
-func (as *AuthService) GetDB() *database.DB {
+func (as *AuthService) GetDB() *mdatabase.DB {
 	return as.db
 }

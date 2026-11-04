@@ -7,7 +7,7 @@ import (
 
 	"github.com/MonkyMars/gecho"
 
-	"github.com/mamabloemetjes/backend/database"
+	"github.com/mamabloemetjes/mdatabase"
 )
 
 var (
@@ -42,11 +42,11 @@ type databaseHealthStatus struct {
 
 type HealthService struct {
 	logger *gecho.Logger
-	db     *database.DB
+	db     *mdatabase.DB
 	status serverHealthStatus
 }
 
-func NewHealthService(logger *gecho.Logger, db *database.DB) *HealthService {
+func NewHealthService(logger *gecho.Logger, db *mdatabase.DB) *HealthService {
 	return &HealthService{
 		logger: logger,
 		db:     db,

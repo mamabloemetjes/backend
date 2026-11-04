@@ -24,8 +24,8 @@ import (
 	"github.com/mamabloemetjes/backend/api/orders"
 	"github.com/mamabloemetjes/backend/api/products"
 	"github.com/mamabloemetjes/backend/config"
-	"github.com/mamabloemetjes/backend/database"
 	"github.com/mamabloemetjes/backend/services"
+	"github.com/mamabloemetjes/mdatabase"
 )
 
 func main() {
@@ -52,7 +52,19 @@ func run() error {
 	logger.Info("Logger initialized")
 
 	// Initialize database
-	db, err := database.Connect(logger)
+	db, err := mdatabase.Connect(logger, mdatabase.Config{
+		Host:         cfg.Database.Host,
+		Port:         cfg.Database.Port,
+		User:         cfg.Database.User,
+		Password:     cfg.Database.Password,
+		Name:         cfg.Database.Name,
+		MaxConns:     cfg.Database.MaxConns,
+		MinConns:     cfg.Database.MinConns,
+		MaxLifetime:  cfg.Database.MaxLifetime,
+		MaxIdleTime:  cfg.Database.MaxIdleTime,
+		ReadTimeout:  cfg.Database.ReadTimeout,
+		WriteTimeout: cfg.Database.WriteTimeout,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}

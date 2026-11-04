@@ -7,10 +7,10 @@ import (
 	"github.com/MonkyMars/gecho"
 
 	"github.com/mamabloemetjes/backend/api/response"
-	"github.com/mamabloemetjes/backend/database"
 	"github.com/mamabloemetjes/backend/lib"
 	"github.com/mamabloemetjes/backend/structs"
 	"github.com/mamabloemetjes/backend/structs/tables"
+	"github.com/mamabloemetjes/mdatabase"
 )
 
 // Context keys for storing user data in request context
@@ -74,7 +74,7 @@ func (mw *Middleware) AdminAuthMiddleware(next http.Handler) http.Handler {
 		// Read the current role from the database. The token role is only a
 		// hint; relying on it would allow an old admin token to survive a
 		// demotion and makes authorization dependent on token claims.
-		user, err := database.Query[tables.User](mw.authService.GetDB()).
+		user, err := mdatabase.Query[tables.User](mw.authService.GetDB()).
 			Where("id", claims.Sub).
 			First(r.Context())
 		if err != nil {

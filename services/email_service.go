@@ -10,10 +10,10 @@ import (
 	"github.com/MonkyMars/gecho"
 	"github.com/resend/resend-go/v3"
 
-	"github.com/mamabloemetjes/backend/database"
 	"github.com/mamabloemetjes/backend/lib"
 	"github.com/mamabloemetjes/backend/structs"
 	"github.com/mamabloemetjes/backend/structs/tables"
+	"github.com/mamabloemetjes/mdatabase"
 )
 
 var (
@@ -25,11 +25,11 @@ type EmailService struct {
 	logger      *gecho.Logger
 	cfg         *structs.Config
 	client      *resend.Client
-	db          *database.DB
+	db          *mdatabase.DB
 	authService *AuthService
 }
 
-func NewEmailService(logger *gecho.Logger, cfg *structs.Config, db *database.DB) *EmailService {
+func NewEmailService(logger *gecho.Logger, cfg *structs.Config, db *mdatabase.DB) *EmailService {
 	return &EmailService{
 		logger:      logger,
 		cfg:         cfg,
@@ -82,7 +82,7 @@ func (es *EmailService) SendVerificationEmail(user *tables.User) (*tables.EmailV
 	}
 
 	// Store hashed token in database with association to user
-	result, err := database.Query[tables.EmailVerification](es.db).Insert(context.Background(), emailVerif)
+	result, err := mdatabase.Query[tables.EmailVerification](es.db).Insert(context.Background(), emailVerif)
 	if err != nil {
 		es.logger.Error("Failed to store email verification token", gecho.Field("error", err))
 		return nil, err

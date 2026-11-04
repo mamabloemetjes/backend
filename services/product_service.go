@@ -9,19 +9,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
-	"github.com/mamabloemetjes/backend/database"
 	"github.com/mamabloemetjes/backend/lib"
 	"github.com/mamabloemetjes/backend/structs/tables"
+	"github.com/mamabloemetjes/mdatabase"
 )
 
 type ProductService struct {
 	logger       *gecho.Logger
-	db           *database.DB
+	db           *mdatabase.DB
 	cacheService *CacheService
 	fileService  *FileService
 }
 
-func NewProductService(logger *gecho.Logger, db *database.DB, cacheService *CacheService, fileService *FileService) *ProductService {
+func NewProductService(logger *gecho.Logger, db *mdatabase.DB, cacheService *CacheService, fileService *FileService) *ProductService {
 	return &ProductService{
 		logger:       logger,
 		db:           db,
@@ -60,10 +60,10 @@ type ProductListOptions struct {
 
 // ProductListResult wraps the product list response with metadata
 type ProductListResult struct {
-	Products   []tables.Product    `json:"products"`
-	Pagination database.Pagination `json:"pagination"`
-	Filters    ProductListOptions  `json:"filters"`
-	QueryTime  time.Duration       `json:"query_time"`
+	Products   []tables.Product     `json:"products"`
+	Pagination mdatabase.Pagination `json:"pagination"`
+	Filters    ProductListOptions   `json:"filters"`
+	QueryTime  time.Duration        `json:"query_time"`
 }
 
 // GetAllProducts retrieves products with comprehensive filtering, pagination, and error handling
@@ -92,7 +92,7 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 	}
 
 	// Build the query
-	query := database.Query[tables.Product](ps.db)
+	query := mdatabase.Query[tables.Product](ps.db)
 
 	// Apply filters
 	query = ps.applyFilters(query, opts)
@@ -106,7 +106,7 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 	}
 
 	// Execute paginated query
-	result, err := database.Paginate(query, queryCtx, opts.Page, opts.PageSize)
+	result, err := mdatabase.Paginate(query, queryCtx, opts.Page, opts.PageSize)
 	if err != nil {
 		ps.logger.Error("Failed to fetch products",
 			gecho.Field("error", err),
@@ -148,7 +148,7 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, incl
 	}
 
 	// Cache miss - fetch from database
-	query := database.Query[tables.Product](ps.db).
+	query := mdatabase.Query[tables.Product](ps.db).
 		Where("id", id).
 		WhereOp("status", "!=", "deleted").
 		Timeout(5 * time.Second)
@@ -220,7 +220,7 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 		// Build result from cache
 		return &ProductListResult{
 			Products: cachedProducts.Products,
-			Pagination: database.Pagination{
+			Pagination: mdatabase.Pagination{
 				Page:       page,
 				PageSize:   pageSize,
 				Total:      totalItems,
@@ -277,7 +277,7 @@ func (ps *ProductService) GetProductsByIds(ctx context.Context, ids []uuid.UUID)
 		idInterfaces[i] = id
 	}
 
-	query := database.Query[tables.Product](ps.db).
+	query := mdatabase.Query[tables.Product](ps.db).
 		WhereIn("id", idInterfaces).
 		Timeout(10 * time.Second)
 
@@ -314,7 +314,7 @@ func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, 
 		skuInterfaces[i] = sku
 	}
 
-	query := database.Query[tables.Product](ps.db).
+	query := mdatabase.Query[tables.Product](ps.db).
 		WhereIn("sku", skuInterfaces).
 		Timeout(10 * time.Second)
 
@@ -341,7 +341,7 @@ func (ps *ProductService) GetProductCount(ctx context.Context, opts *ProductList
 		opts = &ProductListOptions{}
 	}
 
-	query := database.Query[tables.Product](ps.db)
+	query := mdatabase.Query[tables.Product](ps.db)
 	query = ps.applyFilters(query, opts)
 
 	count, err := query.Count(ctx)
@@ -404,7 +404,7 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 }
 
 // applyFilters applies all filter conditions to the query
-func (ps *ProductService) applyFilters(query *database.QueryBuilder[tables.Product], opts *ProductListOptions) *database.QueryBuilder[tables.Product] {
+func (ps *ProductService) applyFilters(query *mdatabase.QueryBuilder[tables.Product], opts *ProductListOptions) *mdatabase.QueryBuilder[tables.Product] {
 	// Filter by active status (default to active only if not specified)
 	if opts.Status != nil {
 		query = query.Where("status", *opts.Status)
@@ -462,18 +462,18 @@ func (ps *ProductService) applyFilters(query *database.QueryBuilder[tables.Produ
 }
 
 // applySorting applies sorting to the query
-func (ps *ProductService) applySorting(query *database.QueryBuilder[tables.Product], opts *ProductListOptions) *database.QueryBuilder[tables.Product] {
-	var direction database.OrderDirection
+func (ps *ProductService) applySorting(query *mdatabase.QueryBuilder[tables.Product], opts *ProductListOptions) *mdatabase.QueryBuilder[tables.Product] {
+	var direction mdatabase.OrderDirection
 	if opts.SortDirection == "ASC" {
-		direction = database.ASC
+		direction = mdatabase.ASC
 	} else {
-		direction = database.DESC
+		direction = mdatabase.DESC
 	}
 
 	query = query.OrderBy(opts.SortBy, direction)
 
 	// Add secondary sort by ID for consistent ordering
-	query = query.OrderBy("id", database.ASC)
+	query = query.OrderBy("id", mdatabase.ASC)
 
 	return query
 }
@@ -500,7 +500,7 @@ func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Pro
 	product.Images = nil // Remove images from product to avoid relation insert issues
 
 	// Insert product into database
-	product, err := database.Query[tables.Product](ps.db).Insert(ctx, product)
+	product, err := mdatabase.Query[tables.Product](ps.db).Insert(ctx, product)
 	if err != nil {
 		ps.logger.Error("Failed to create product",
 			gecho.Field("error", err),
@@ -520,7 +520,7 @@ func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Pro
 			images[i].ProductID = product.ID
 		}
 
-		_, imgErr := database.Query[tables.ProductImage](ps.db).InsertMany(ctx, images)
+		_, imgErr := mdatabase.Query[tables.ProductImage](ps.db).InsertMany(ctx, images)
 		if imgErr != nil {
 			ps.logger.Error("Failed to insert product images",
 				gecho.Field("error", imgErr),
@@ -564,7 +564,7 @@ type UpdateProductRequest struct {
 }
 
 func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID, req *UpdateProductRequest) error {
-	return database.Transaction(ps.db, ctx, func(tx bun.Tx) error {
+	return mdatabase.Transaction(ps.db, ctx, func(tx bun.Tx) error {
 		// Build update map with only provided fields
 		updateData := make(map[string]any)
 
@@ -603,7 +603,7 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 		// Handle images update if provided
 		if req.Images != nil {
 			// Delete existing images
-			if _, err := database.Query[tables.ProductImage](ps.db).Where("product_id", productID.String()).Delete(ctx); err != nil {
+			if _, err := mdatabase.Query[tables.ProductImage](ps.db).Where("product_id", productID.String()).Delete(ctx); err != nil {
 				return fmt.Errorf("failed to delete existing images: %w", err)
 			}
 
@@ -636,7 +636,7 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 
 		// Calculate subtotal if price, discount, or tax changed
 		if req.Price != nil || req.Discount != nil || req.Tax != nil {
-			currentProduct, err := database.Query[tables.Product](ps.db).Where("id", productID).First(ctx)
+			currentProduct, err := mdatabase.Query[tables.Product](ps.db).Where("id", productID).First(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to fetch current product for subtotal calculation: %w", err)
 			}
@@ -659,7 +659,7 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 
 		// Perform the update if there is data to update
 		if len(updateData) > 0 {
-			if _, err := database.Query[tables.Product](ps.db).Where("id", productID).Update(ctx, updateData); err != nil {
+			if _, err := mdatabase.Query[tables.Product](ps.db).Where("id", productID).Update(ctx, updateData); err != nil {
 				return fmt.Errorf("failed to update product: %w", err)
 			}
 		}
@@ -682,7 +682,7 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID
 	startTime := time.Now()
 
 	now := time.Now()
-	result, err := database.Query[tables.Product](ps.db).
+	result, err := mdatabase.Query[tables.Product](ps.db).
 		Where("id", productID.String()).
 		WhereOp("status", "!=", "deleted").
 		Update(ctx, map[string]any{"status": "deleted", "deleted_at": now})
@@ -695,7 +695,7 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID
 		return fmt.Errorf("failed to delete product: %w", err)
 	}
 	if result == 0 {
-		product, lookupErr := database.Query[tables.Product](ps.db).
+		product, lookupErr := mdatabase.Query[tables.Product](ps.db).
 			Where("id", productID.String()).
 			First(ctx)
 		if lookupErr != nil {
@@ -746,7 +746,7 @@ func (ps *ProductService) PurgeExpiredDeletedProducts(ctx context.Context, reten
 		if err := ps.db.NewSelect().Model(&images).Where("product_id = ?", product.ID).Scan(ctx); err != nil {
 			return fmt.Errorf("failed to load images for expired product %s: %w", product.ID, err)
 		}
-		if err := database.Transaction(ps.db, ctx, func(tx bun.Tx) error {
+		if err := mdatabase.Transaction(ps.db, ctx, func(tx bun.Tx) error {
 			if _, err := tx.NewDelete().Model((*tables.ProductImage)(nil)).Where("product_id = ?", product.ID).Exec(ctx); err != nil {
 				return fmt.Errorf("failed to delete product images: %w", err)
 			}

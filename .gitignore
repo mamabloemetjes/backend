@@ -6,3 +6,5 @@ bin/
 tmp/
 uploads/
 *debug_bin*
+
+go.work*
