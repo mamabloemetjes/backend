@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MonkyMars/gecho"
@@ -37,7 +38,7 @@ type ProductListOptions struct {
 	PageSize int `json:"page_size"`
 
 	// Filters
-	Status        *string    `json:"status,omitempty"`         // Filter by product status
+	Status        *string    `json:"status,omitempty"`         // Filter by product status (nil = everything except deleted)
 	MinPrice      *uint64    `json:"min_price,omitempty"`      // Minimum price in cents
 	MaxPrice      *uint64    `json:"max_price,omitempty"`      // Maximum price in cents
 	SearchTerm    string     `json:"search_term,omitempty"`    // Search in name, description, SKU
@@ -53,6 +54,7 @@ type ProductListOptions struct {
 
 	// Relations
 	IncludeImages bool `json:"include_images"` // Preload product images
+	IncludeStock  bool `json:"include_stock"`  // Preload product stock
 
 	// Performance
 	Timeout time.Duration `json:"-"` // Query timeout (not exposed in JSON)
@@ -66,14 +68,31 @@ type ProductListResult struct {
 	QueryTime  time.Duration        `json:"query_time"`
 }
 
+// calcSubtotal computes price - discount + tax and guards against uint64 underflow.
+func calcSubtotal(price, discount, tax uint64) (uint64, error) {
+	gross := price + tax
+	if discount > gross {
+		return 0, fmt.Errorf("discount (%d) cannot be greater than price plus tax (%d)", discount, gross)
+	}
+	return gross - discount, nil
+}
+
+// escapeLike escapes LIKE/ILIKE wildcards so user input is matched literally.
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
 // GetAllProducts retrieves products with comprehensive filtering, pagination, and error handling
 // This is the main production-ready method for listing products
 func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListOptions) (*ProductListResult, error) {
 	startTime := time.Now()
 
-	// Validate and apply defaults to options
+	// Work on a copy so the caller's options are never mutated
 	if opts == nil {
 		opts = &ProductListOptions{}
+	} else {
+		optsCopy := *opts
+		opts = &optsCopy
 	}
 	ps.applyDefaultOptions(opts)
 
@@ -83,7 +102,7 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 		return nil, fmt.Errorf("invalid options: %w", err)
 	}
 
-	// Add query timeout if not set
+	// Add query timeout
 	queryCtx := ctx
 	if opts.Timeout > 0 {
 		var cancel context.CancelFunc
@@ -93,16 +112,16 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 
 	// Build the query
 	query := mdatabase.Query[tables.Product](ps.db)
-
-	// Apply filters
 	query = ps.applyFilters(query, opts)
-
-	// Apply sorting
 	query = ps.applySorting(query, opts)
 
-	// Preload images if requested
 	if opts.IncludeImages {
 		query = query.Relation("Images")
+	}
+
+	ps.logger.Warn("INCLUDE_STOCK", opts.IncludeStock)
+	if opts.IncludeStock {
+		query = query.Relation("Stock")
 	}
 
 	// Execute paginated query
@@ -116,7 +135,6 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 		return nil, fmt.Errorf("failed to fetch products: %w", err)
 	}
 
-	// Log successful query
 	ps.logger.Debug("Products fetched successfully",
 		gecho.Field("count", len(result.Data)),
 		gecho.Field("total", result.Pagination.Total),
@@ -125,7 +143,6 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 		gecho.Field("duration", time.Since(startTime)),
 	)
 
-	// Build response
 	return &ProductListResult{
 		Products:   result.Data,
 		Pagination: result.Pagination,
@@ -134,17 +151,45 @@ func (ps *ProductService) GetAllProducts(ctx context.Context, opts *ProductListO
 	}, nil
 }
 
-// GetProductByID retrieves a single product by ID with optional image preloading
-func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, includeImages bool) (*tables.Product, error) {
+// withStock returns a copy of the product with fresh inventory attached.
+// Stock is volatile (orders change it), so it is intentionally never served from cache.
+// A copy is returned so cached/shared product values are never mutated.
+func (ps *ProductService) withStock(ctx context.Context, product *tables.Product) (*tables.Product, error) {
+	stock, err := ps.GetProductStock(ctx, product.ID)
+	if err != nil && !lib.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to fetch product stock: %w", err)
+	}
+
+	out := *product
+	if err == nil && stock != nil {
+		out.Inventory = *stock
+	}
+	return &out, nil
+}
+
+// GetProductByID retrieves a single product by ID with optional image and stock loading
+func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, includeImages, includeStock bool) (*tables.Product, error) {
 	startTime := time.Now()
 
-	// Try to get from cache first
+	// Try the cache first (product data only, never stock)
 	cachedProduct, err := ps.cacheService.GetProductByID(id, includeImages)
 	if err != nil {
 		ps.logger.Warn("Failed to get product from cache", gecho.Field("error", err), gecho.Field("id", id))
 	} else if cachedProduct != nil {
 		ps.logger.Debug("Product retrieved from cache", gecho.Field("id", id), gecho.Field("duration", time.Since(startTime)))
-		return cachedProduct, nil
+		if !includeStock {
+			return cachedProduct, nil
+		}
+		result, err := ps.withStock(ctx, cachedProduct)
+		if err != nil {
+			ps.logger.Error("Failed to fetch stock by product ID",
+				gecho.Field("id", id),
+				gecho.Field("error", err),
+				gecho.Field("duration", time.Since(startTime)),
+			)
+			return nil, err
+		}
+		return result, nil
 	}
 
 	// Cache miss - fetch from database
@@ -153,12 +198,18 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, incl
 		WhereOp("status", "!=", "deleted").
 		Timeout(5 * time.Second)
 
-	query = query.Relation("Images", func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.OrderExpr("is_primary DESC")
-	})
+	if includeImages {
+		query = query.Relation("Images", func(q *bun.SelectQuery) *bun.SelectQuery {
+			return q.OrderBy("is_primary", bun.OrderDesc)
+		})
+	}
 
 	product, err := query.First(ctx)
 	if err != nil {
+		if lib.IsNotFound(err) {
+			ps.logger.Warn("Product not found", gecho.Field("id", id))
+			return nil, lib.ErrNotFound
+		}
 		ps.logger.Error("Failed to fetch product by ID",
 			gecho.Field("id", id),
 			gecho.Field("error", err),
@@ -166,83 +217,97 @@ func (ps *ProductService) GetProductByID(ctx context.Context, id uuid.UUID, incl
 		)
 		return nil, fmt.Errorf("failed to fetch product: %w", err)
 	}
-
-	ps.logger.Debug("Product fetched from database",
-		gecho.Field("id", id),
-		gecho.Field("duration", time.Since(startTime)),
-		gecho.Field("include_images", includeImages),
-		gecho.Field("has_images", len(product.Images) > 0),
-	)
-
 	if product == nil {
 		ps.logger.Warn("Product not found", gecho.Field("id", id))
 		return nil, lib.ErrNotFound
 	}
 
-	// Cache the product asynchronously
+	// Cache the product (without stock) asynchronously
 	runBoundedCacheWrite(func() {
 		if err := ps.cacheService.SetProductByID(product, includeImages); err != nil {
 			ps.logger.Warn("Failed to cache product", gecho.Field("error", err), gecho.Field("id", id))
 		}
 	})
 
+	result := product
+	if includeStock {
+		result, err = ps.withStock(ctx, product)
+		if err != nil {
+			ps.logger.Error("Failed to fetch stock by product ID",
+				gecho.Field("id", id),
+				gecho.Field("error", err),
+				gecho.Field("duration", time.Since(startTime)),
+			)
+			return nil, err
+		}
+	}
+
 	ps.logger.Debug("Product fetched by ID",
 		gecho.Field("id", id),
 		gecho.Field("duration", time.Since(startTime)),
+		gecho.Field("include_images", includeImages),
+		gecho.Field("has_images", len(result.Images) > 0),
+		gecho.Field("include_stock", includeStock),
 	)
-	return product, nil
+	return result, nil
 }
 
-// GetActiveProducts is a convenience method to get only active products with caching
-func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize int, includeImages bool, productType string) (*ProductListResult, error) {
+// GetActiveProducts is a convenience method to get only active products with caching.
+// The list cache is only used when stock is not requested, because stock changes too
+// often to be cached and the cache key does not distinguish stock variants.
+func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize int, includeImages, includeStock bool, productType string) (*ProductListResult, error) {
 	startTime := time.Now()
+	useCache := !includeStock
 
-	// Try to get from cache first
-	cachedProducts, err := ps.cacheService.GetActiveProductsList(page, pageSize, includeImages, productType)
-	if err != nil {
-		ps.logger.Warn("Failed to get active products from cache", gecho.Field("error", err))
-	} else if cachedProducts != nil {
-		totalItems := cachedProducts.TotalItems
-		if totalItems < len(cachedProducts.Products) {
-			totalItems = len(cachedProducts.Products)
+	if useCache {
+		cachedProducts, err := ps.cacheService.GetActiveProductsList(page, pageSize, includeImages, productType)
+		if err != nil {
+			ps.logger.Warn("Failed to get active products from cache", gecho.Field("error", err))
+		} else if cachedProducts != nil {
+			totalItems := cachedProducts.TotalItems
+			if totalItems < len(cachedProducts.Products) {
+				totalItems = len(cachedProducts.Products)
+			}
+
+			totalPages := cachedProducts.TotalPages
+			if totalPages < 1 && totalItems > 0 {
+				totalPages = (totalItems + pageSize - 1) / pageSize
+			}
+
+			ps.logger.Debug("Active products retrieved from cache",
+				gecho.Field("count", len(cachedProducts.Products)),
+				gecho.Field("page", page),
+				gecho.Field("duration", time.Since(startTime)),
+			)
+
+			return &ProductListResult{
+				Products: cachedProducts.Products,
+				Pagination: mdatabase.Pagination{
+					Page:       page,
+					PageSize:   pageSize,
+					Total:      totalItems,
+					TotalItems: totalItems,
+					TotalPages: totalPages,
+				},
+				Filters: ProductListOptions{
+					Page:          page,
+					PageSize:      pageSize,
+					IncludeImages: includeImages,
+					IncludeStock:  includeStock,
+				},
+				QueryTime: time.Since(startTime),
+			}, nil
 		}
-		totalPages := cachedProducts.TotalPages
-		if totalPages < 1 && totalItems > 0 {
-			totalPages = (totalItems + pageSize - 1) / pageSize
-		}
-
-		ps.logger.Debug("Active products retrieved from cache",
-			gecho.Field("count", len(cachedProducts.Products)),
-			gecho.Field("page", page),
-			gecho.Field("duration", time.Since(startTime)),
-		)
-
-		// Build result from cache
-		return &ProductListResult{
-			Products: cachedProducts.Products,
-			Pagination: mdatabase.Pagination{
-				Page:       page,
-				PageSize:   pageSize,
-				Total:      totalItems,
-				TotalItems: totalItems,
-				TotalPages: totalPages,
-			},
-			Filters: ProductListOptions{
-				Page:          page,
-				PageSize:      pageSize,
-				IncludeImages: includeImages,
-			},
-			QueryTime: time.Duration(time.Since(startTime).Milliseconds()),
-		}, nil
 	}
 
-	// Cache miss - fetch from database
+	// Cache miss (or cache bypassed) - fetch from database
 	status := "active"
 	opts := &ProductListOptions{
 		Page:          page,
 		PageSize:      pageSize,
 		Status:        &status,
 		IncludeImages: includeImages,
+		IncludeStock:  includeStock,
 		SortBy:        "created_at",
 		SortDirection: "DESC",
 		ProductType:   productType,
@@ -253,17 +318,19 @@ func (ps *ProductService) GetActiveProducts(ctx context.Context, page, pageSize 
 		return nil, err
 	}
 
-	// Cache the products asynchronously
-	runBoundedCacheWrite(func() {
-		if err := ps.cacheService.SetActiveProductsList(page, pageSize, includeImages, result.Products, result.Pagination.Total, result.Pagination.TotalPages, productType); err != nil {
-			ps.logger.Warn("Failed to cache active products", gecho.Field("error", err))
-		}
-	})
+	if useCache {
+		runBoundedCacheWrite(func() {
+			if err := ps.cacheService.SetActiveProductsList(page, pageSize, includeImages, result.Products, result.Pagination.Total, result.Pagination.TotalPages, productType); err != nil {
+				ps.logger.Warn("Failed to cache active products", gecho.Field("error", err))
+			}
+		})
+	}
 
 	return result, nil
 }
 
-// GetProductsByIds retrieves multiple products by their IDs
+// GetProductsByIds retrieves multiple products by their IDs.
+// Deleted products are intentionally included so historical data (e.g. orders) still resolves.
 func (ps *ProductService) GetProductsByIds(ctx context.Context, ids []uuid.UUID) ([]*tables.Product, error) {
 	startTime := time.Now()
 
@@ -271,7 +338,6 @@ func (ps *ProductService) GetProductsByIds(ctx context.Context, ids []uuid.UUID)
 		return []*tables.Product{}, nil
 	}
 
-	// Convert IDs to interface slice
 	idInterfaces := make([]any, len(ids))
 	for i, id := range ids {
 		idInterfaces[i] = id
@@ -291,7 +357,6 @@ func (ps *ProductService) GetProductsByIds(ctx context.Context, ids []uuid.UUID)
 		return nil, fmt.Errorf("failed to fetch products by IDs: %w", err)
 	}
 
-	// Convert slice to pointer slice
 	result := make([]*tables.Product, len(products))
 	for i := range products {
 		result[i] = &products[i]
@@ -301,14 +366,13 @@ func (ps *ProductService) GetProductsByIds(ctx context.Context, ids []uuid.UUID)
 }
 
 // GetProductsBySKUs retrieves multiple products by their SKUs
-func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, includeImages bool) ([]tables.Product, error) {
+func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, includeImages, includeStock bool) ([]tables.Product, error) {
 	startTime := time.Now()
 
 	if len(skus) == 0 {
 		return []tables.Product{}, nil
 	}
 
-	// Convert SKUs to interface slice
 	skuInterfaces := make([]any, len(skus))
 	for i, sku := range skus {
 		skuInterfaces[i] = sku
@@ -320,6 +384,9 @@ func (ps *ProductService) GetProductsBySKUs(ctx context.Context, skus []string, 
 
 	if includeImages {
 		query = query.Relation("Images")
+	}
+	if includeStock {
+		query = query.Relation("Stock")
 	}
 
 	products, err := query.All(ctx)
@@ -353,6 +420,16 @@ func (ps *ProductService) GetProductCount(ctx context.Context, opts *ProductList
 	return count, nil
 }
 
+// GetProductStock returns the stock of one product by id
+func (ps *ProductService) GetProductStock(ctx context.Context, productId uuid.UUID) (*tables.Inventory, error) {
+	stock, err := mdatabase.Query[tables.Inventory](ps.db).Where("product_id", productId).First(ctx)
+	if err != nil {
+		return &tables.Inventory{}, err
+	}
+
+	return stock, nil
+}
+
 // applyDefaultOptions sets default values for unspecified options
 func (ps *ProductService) applyDefaultOptions(opts *ProductListOptions) {
 	if opts.Page < 1 {
@@ -377,7 +454,6 @@ func (ps *ProductService) applyDefaultOptions(opts *ProductListOptions) {
 
 // validateOptions validates the provided options
 func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
-	// Validate sort field
 	validSortFields := map[string]bool{
 		"created_at": true,
 		"updated_at": true,
@@ -390,12 +466,10 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 		return fmt.Errorf("invalid sort field: %s", opts.SortBy)
 	}
 
-	// Validate sort direction
 	if opts.SortDirection != "ASC" && opts.SortDirection != "DESC" {
 		return fmt.Errorf("invalid sort direction: %s (must be ASC or DESC)", opts.SortDirection)
 	}
 
-	// Validate price range
 	if opts.MinPrice != nil && opts.MaxPrice != nil && *opts.MinPrice > *opts.MaxPrice {
 		return fmt.Errorf("min_price cannot be greater than max_price")
 	}
@@ -405,12 +479,13 @@ func (ps *ProductService) validateOptions(opts *ProductListOptions) error {
 
 // applyFilters applies all filter conditions to the query
 func (ps *ProductService) applyFilters(query *mdatabase.QueryBuilder[tables.Product], opts *ProductListOptions) *mdatabase.QueryBuilder[tables.Product] {
-	// Filter by active status (default to active only if not specified)
+	// Explicit status wins; otherwise soft-deleted products are hidden
 	if opts.Status != nil {
 		query = query.Where("status", *opts.Status)
+	} else {
+		query = query.WhereOp("status", "!=", "deleted")
 	}
 
-	// Filter by price range
 	if opts.MinPrice != nil {
 		query = query.WhereOp("price", ">=", *opts.MinPrice)
 	}
@@ -418,21 +493,19 @@ func (ps *ProductService) applyFilters(query *mdatabase.QueryBuilder[tables.Prod
 		query = query.WhereOp("price", "<=", *opts.MaxPrice)
 	}
 
-	// Search in name, description, or SKU
+	// Search in name, description, or SKU (wildcards in user input are escaped)
 	if opts.SearchTerm != "" {
-		searchPattern := "%" + opts.SearchTerm + "%"
+		searchPattern := "%" + escapeLike(opts.SearchTerm) + "%"
 		query = query.WhereRaw(
 			"(name ILIKE ? OR description ILIKE ? OR sku ILIKE ?)",
 			searchPattern, searchPattern, searchPattern,
 		)
 	}
 
-	// Filter by product type
 	if opts.ProductType != "" {
 		query = query.Where("product_type", opts.ProductType)
 	}
 
-	// Filter by specific SKUs
 	if len(opts.SKUs) > 0 {
 		skuInterfaces := make([]any, len(opts.SKUs))
 		for i, sku := range opts.SKUs {
@@ -441,7 +514,6 @@ func (ps *ProductService) applyFilters(query *mdatabase.QueryBuilder[tables.Prod
 		query = query.WhereIn("sku", skuInterfaces)
 	}
 
-	// Exclude specific SKUs
 	if len(opts.ExcludeSKUs) > 0 {
 		skuInterfaces := make([]any, len(opts.ExcludeSKUs))
 		for i, sku := range opts.ExcludeSKUs {
@@ -450,7 +522,6 @@ func (ps *ProductService) applyFilters(query *mdatabase.QueryBuilder[tables.Prod
 		query = query.WhereNotIn("sku", skuInterfaces)
 	}
 
-	// Filter by creation date range
 	if opts.CreatedAfter != nil {
 		query = query.WhereOp("created_at", ">=", *opts.CreatedAfter)
 	}
@@ -478,8 +549,7 @@ func (ps *ProductService) applySorting(query *mdatabase.QueryBuilder[tables.Prod
 	return query
 }
 
-// Create new product
-
+// CreateProduct creates a new product (and its images)
 func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Product) (*tables.Product, error) {
 	startTime := time.Now()
 
@@ -492,40 +562,52 @@ func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Pro
 		product.ID = uuid.New()
 	}
 
-	// Calculate subtotal
-	product.Subtotal = product.Price - product.Discount + product.Tax
+	subtotal, err := calcSubtotal(product.Price, product.Discount, product.Tax)
+	if err != nil {
+		return nil, fmt.Errorf("invalid product pricing: %w", err)
+	}
+	product.Subtotal = subtotal
 
 	// Store images separately to insert them after product creation
 	images := product.Images
 	product.Images = nil // Remove images from product to avoid relation insert issues
+	productName := product.Name
 
-	// Insert product into database
-	product, err := mdatabase.Query[tables.Product](ps.db).Insert(ctx, product)
+	created, err := mdatabase.Query[tables.Product](ps.db).Insert(ctx, product)
 	if err != nil {
 		ps.logger.Error("Failed to create product",
 			gecho.Field("error", err),
-			gecho.Field("product_name", product.Name),
+			gecho.Field("product_name", productName),
 			gecho.Field("duration", time.Since(startTime)),
 		)
 		return nil, fmt.Errorf("failed to create product: %w", err)
 	}
+	product = created
 
-	// Insert images if any
 	if len(images) > 0 {
 		for i := range images {
-			// Generate UUID for image if not set
 			if images[i].ID == uuid.Nil {
 				images[i].ID = uuid.New()
 			}
 			images[i].ProductID = product.ID
 		}
 
-		_, imgErr := mdatabase.Query[tables.ProductImage](ps.db).InsertMany(ctx, images)
-		if imgErr != nil {
+		if _, imgErr := mdatabase.Query[tables.ProductImage](ps.db).InsertMany(ctx, images); imgErr != nil {
 			ps.logger.Error("Failed to insert product images",
 				gecho.Field("error", imgErr),
 				gecho.Field("product_id", product.ID),
 			)
+
+			// Compensate so we don't leave a product without its images behind
+			if _, delErr := ps.db.NewDelete().
+				Model((*tables.Product)(nil)).
+				Where("id = ?", product.ID).
+				Exec(ctx); delErr != nil {
+				ps.logger.Error("Failed to roll back product after image insert failure",
+					gecho.Field("error", delErr),
+					gecho.Field("product_id", product.ID),
+				)
+			}
 			return nil, fmt.Errorf("failed to insert product images: %w", imgErr)
 		}
 	}
@@ -533,15 +615,15 @@ func (ps *ProductService) CreateProduct(ctx context.Context, product *tables.Pro
 	// Restore images to the product object for the response
 	product.Images = images
 
-	// Invalidate product caches asynchronously
-	go func() {
-		if err := ps.cacheService.InvalidateProductCaches(product.ID); err != nil {
+	productID := product.ID
+	runBoundedCacheWrite(func() {
+		if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
 			ps.logger.Warn("Failed to invalidate product caches after creation",
 				gecho.Field("error", err),
-				gecho.Field("product_id", product.ID),
+				gecho.Field("product_id", productID),
 			)
 		}
-	}()
+	})
 
 	ps.logger.Info("Product created successfully",
 		gecho.Field("id", product.ID),
@@ -564,7 +646,7 @@ type UpdateProductRequest struct {
 }
 
 func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID, req *UpdateProductRequest) error {
-	return mdatabase.Transaction(ps.db, ctx, func(tx bun.Tx) error {
+	err := mdatabase.Transaction(ps.db, ctx, func(tx bun.Tx) error {
 		// Build update map with only provided fields
 		updateData := make(map[string]any)
 
@@ -589,25 +671,24 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 		if req.Status != nil {
 			updateData["status"] = *req.Status
 			if *req.Status == "deleted" {
-				now := time.Now()
-				updateData["deleted_at"] = now
+				updateData["deleted_at"] = time.Now()
 			} else {
 				updateData["deleted_at"] = nil
 			}
 		}
-
 		if req.ProductType != nil {
 			updateData["product_type"] = *req.ProductType
 		}
 
-		// Handle images update if provided
+		// Handle images update if provided (all inside the transaction)
 		if req.Images != nil {
-			// Delete existing images
-			if _, err := mdatabase.Query[tables.ProductImage](ps.db).Where("product_id", productID.String()).Delete(ctx); err != nil {
+			if _, err := tx.NewDelete().
+				Model((*tables.ProductImage)(nil)).
+				Where("product_id = ?", productID).
+				Exec(ctx); err != nil {
 				return fmt.Errorf("failed to delete existing images: %w", err)
 			}
 
-			// Insert new images if any provided
 			if len(req.Images) > 0 {
 				hasPrimary := false
 				for i := range req.Images {
@@ -624,20 +705,23 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 					}
 				}
 
-				if !hasPrimary && len(req.Images) > 0 {
+				if !hasPrimary {
 					req.Images[0].IsPrimary = true
 				}
 
-				if _, err := ps.db.NewInsert().Model(&req.Images).Exec(ctx); err != nil {
+				if _, err := tx.NewInsert().Model(&req.Images).Exec(ctx); err != nil {
 					return fmt.Errorf("failed to insert new images: %w", err)
 				}
 			}
 		}
 
-		// Calculate subtotal if price, discount, or tax changed
+		// Recalculate subtotal if price, discount, or tax changed
 		if req.Price != nil || req.Discount != nil || req.Tax != nil {
-			currentProduct, err := mdatabase.Query[tables.Product](ps.db).Where("id", productID).First(ctx)
-			if err != nil {
+			currentProduct := new(tables.Product)
+			if err := tx.NewSelect().Model(currentProduct).Where("id = ?", productID).Scan(ctx); err != nil {
+				if lib.IsNotFound(err) {
+					return lib.ErrNotFound
+				}
 				return fmt.Errorf("failed to fetch current product for subtotal calculation: %w", err)
 			}
 
@@ -654,28 +738,54 @@ func (ps *ProductService) UpdateProduct(ctx context.Context, productID uuid.UUID
 			if req.Tax != nil {
 				tax = *req.Tax
 			}
-			updateData["subtotal"] = price - discount + tax
+
+			subtotal, err := calcSubtotal(price, discount, tax)
+			if err != nil {
+				return fmt.Errorf("invalid product pricing: %w", err)
+			}
+			updateData["subtotal"] = subtotal
 		}
 
 		// Perform the update if there is data to update
 		if len(updateData) > 0 {
-			if _, err := mdatabase.Query[tables.Product](ps.db).Where("id", productID).Update(ctx, updateData); err != nil {
+			q := tx.NewUpdate().
+				Model((*tables.Product)(nil)).
+				Where("id = ?", productID).
+				// Remove this line if your model/mdatabase already maintains updated_at
+				Set("? = ?", bun.Ident("updated_at"), time.Now())
+
+			// Column names come from the fixed set above, never from user input
+			for col, val := range updateData {
+				q = q.Set("? = ?", bun.Ident(col), val)
+			}
+
+			res, err := q.Exec(ctx)
+			if err != nil {
 				return fmt.Errorf("failed to update product: %w", err)
+			}
+			if n, rowsErr := res.RowsAffected(); rowsErr == nil && n == 0 {
+				return lib.ErrNotFound
 			}
 		}
 
-		// Invalidate product caches asynchronously
-		go func() {
-			if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
-				ps.logger.Warn("Failed to invalidate product caches after update",
-					gecho.Field("error", err),
-					gecho.Field("product_id", productID),
-				)
-			}
-		}()
-
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Invalidate caches only after the transaction has committed,
+	// otherwise a concurrent reader could re-cache the old data.
+	runBoundedCacheWrite(func() {
+		if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
+			ps.logger.Warn("Failed to invalidate product caches after update",
+				gecho.Field("error", err),
+				gecho.Field("product_id", productID),
+			)
+		}
+	})
+
+	return nil
 }
 
 func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID) error {
@@ -713,14 +823,14 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, productID uuid.UUID
 		return lib.ErrNotFound
 	}
 
-	go func() {
+	runBoundedCacheWrite(func() {
 		if err := ps.cacheService.InvalidateProductCaches(productID); err != nil {
 			ps.logger.Warn("Failed to invalidate product caches after deletion",
 				gecho.Field("error", err),
 				gecho.Field("product_id", productID),
 			)
 		}
-	}()
+	})
 
 	ps.logger.Info("Product moved to deleted status",
 		gecho.Field("product_id", productID),
@@ -757,13 +867,22 @@ func (ps *ProductService) PurgeExpiredDeletedProducts(ctx context.Context, reten
 		}); err != nil {
 			return fmt.Errorf("failed to purge product %s: %w", product.ID, err)
 		}
+
+		// The DB rows are gone at this point, so a file failure must not abort the run:
+		// a retry would never find these products again and the files would stay orphaned.
 		for _, image := range images {
-			if image.Name != "" {
-				if err := ps.fileService.Delete(image.Name); err != nil {
-					return fmt.Errorf("failed to delete image files for product %s: %w", product.ID, err)
-				}
+			if image.Name == "" {
+				continue
+			}
+			if err := ps.fileService.Delete(image.Name); err != nil {
+				ps.logger.Error("Failed to delete image file for purged product",
+					gecho.Field("error", err),
+					gecho.Field("product_id", product.ID),
+					gecho.Field("file", image.Name),
+				)
 			}
 		}
+
 		if err := ps.cacheService.InvalidateProductCaches(product.ID); err != nil {
 			ps.logger.Warn("Failed to invalidate purged product cache", gecho.Field("error", err), gecho.Field("product_id", product.ID))
 		}

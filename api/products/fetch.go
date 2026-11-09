@@ -90,10 +90,13 @@ func (p *ProductRoutesManager) FetchProductByID(w http.ResponseWriter, r *http.R
 	}
 
 	// Check if images should be included
-	includeImages := r.URL.Query().Get("include_images") == "true"
+	includeImages := lib.SanitizeString(r.URL.Query().Get("include_images"), true, false) == "true"
+
+	// Check if stock should be included
+	includeStock := lib.SanitizeString(r.URL.Query().Get("include_stock"), true, false) == "true"
 
 	// Fetch product using the service
-	product, err := p.productService.GetProductByID(ctx, id, includeImages)
+	product, err := p.productService.GetProductByID(ctx, id, includeImages, includeStock)
 	if err != nil {
 		if errors.Is(err, lib.ErrNotFound) {
 			response.Send(gecho.NotFound(w,
@@ -146,8 +149,11 @@ func (p *ProductRoutesManager) FetchActiveProducts(w http.ResponseWriter, r *htt
 	// Check if images should be included
 	includeImages := lib.SanitizeString(r.URL.Query().Get("include_images"), true, false) == "true"
 
+	// Check if stock should be included
+	includeStock := lib.SanitizeString(r.URL.Query().Get("include_stock"), true, false) == "true"
+
 	// Fetch active products using the service
-	result, err := p.productService.GetActiveProducts(ctx, page, pageSize, includeImages, productType)
+	result, err := p.productService.GetActiveProducts(ctx, page, pageSize, includeImages, includeStock, productType)
 	if err != nil {
 		p.logger.Error("Failed to fetch active products", "error", err)
 		response.Send(gecho.InternalServerError(w,

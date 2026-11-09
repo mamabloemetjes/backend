@@ -22,6 +22,7 @@ type Product struct {
 	UpdatedAt   time.Time      `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 	DeletedAt   *time.Time     `bun:"deleted_at,nullzero" json:"deleted_at,omitempty"`
 	Images      []ProductImage `bun:"rel:has-many,join:id=product_id" json:"images,omitempty" validate:"omitempty,dive"` // slice is nil if no images
+	Inventory   Inventory      `bun:"rel:has-one,join:id=product_id" json:"inventory,omitempty" validate:"omitempty,dive"`
 }
 
 // ProductImage represents an image for a product

@@ -49,7 +49,7 @@ func run() error {
 	logLevel := gecho.ParseLogLevel(cfg.Server.LogLevel)
 	logger := gecho.NewLogger(gecho.NewConfig(gecho.WithShowCaller(true), gecho.WithLogLevel(logLevel)))
 	mwLogger := gecho.NewLogger(gecho.NewConfig(gecho.WithShowCaller(false), gecho.WithLogLevel(logLevel)))
-	logger.Info("Logger initialized")
+	logger.Info("Logger initialized with log level:", cfg.Server.LogLevel)
 
 	// Initialize database
 	db, err := mdatabase.Connect(logger, mdatabase.Config{
