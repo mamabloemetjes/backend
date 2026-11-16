@@ -325,6 +325,8 @@ func (as *AuthService) GetUserByID(userId uuid.UUID) (*tables.User, error) {
 		if err := as.cacheService.SetUserInCache(user); err != nil {
 			as.logger.Warn("Failed to cache user after DB fetch", gecho.Field("error", err), gecho.Field("user_id", userId))
 		}
+		// Log succesfull user cache
+		as.logger.Info("Successfully set user in cache")
 	}()
 
 	return user, nil
@@ -344,10 +346,18 @@ func (as *AuthService) UpdateLastLogin(userId uuid.UUID) error {
 	updates := map[string]any{
 		"last_login": time.Now(),
 	}
+<<<<<<< Updated upstream
 	_, err := mdatabase.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
 	if err != nil {
+=======
+	affectedRows, err := database.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
+	if err != nil || affectedRows == 0 {
+>>>>>>> Stashed changes
 		return lib.MapPgError(err)
 	}
+
+	as.logger.Info("Successfully set last login to %d for user %s", updates["last_login"], userId)
+
 	return nil
 }
 
