@@ -346,13 +346,9 @@ func (as *AuthService) UpdateLastLogin(userId uuid.UUID) error {
 	updates := map[string]any{
 		"last_login": time.Now(),
 	}
-<<<<<<< Updated upstream
-	_, err := mdatabase.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
-	if err != nil {
-=======
-	affectedRows, err := database.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
+
+	affectedRows, err := mdatabase.Query[tables.User](as.db).Where("id", userId).Update(context.Background(), updates)
 	if err != nil || affectedRows == 0 {
->>>>>>> Stashed changes
 		return lib.MapPgError(err)
 	}
 
